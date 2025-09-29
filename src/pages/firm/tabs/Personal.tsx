@@ -51,51 +51,44 @@ const Personal: React.FC = () => {
     let mounted = true;
     (async () => {
       try {
-        console.log('Loading user data...');
+        console.log('Loading user data from AWS Cognito...');
         
-        
+        // Load all attributes from Cognito
         const attrs = await fetchUserAttributes();
-        console.log('Cognito attributes:', attrs);
+        console.log('AWS Cognito attributes:', attrs);
         
         if (!mounted) return;
         
-        
-        const storedData = localStorage.getItem('userProfileData');
-        const extendedData = storedData ? JSON.parse(storedData) : {};
-        console.log('Extended profile data:', extendedData);
-        
-        
+        // Map all fields to form state from Cognito attributes
         const formData = {
-          
-          firstName: attrs.given_name || attrs.name?.split(' ')[0] || '',
-          lastName: attrs.family_name || attrs.name?.split(' ').slice(1).join(' ') || '',
+          // Standard Cognito fields
+          firstName: attrs.given_name || attrs['custom:firstName'] || '',
+          lastName: attrs.family_name || attrs['custom:lastName'] || '',
           email: attrs.email || '',
           phone: attrs.phone_number || '',
           
-         
-          ...extendedData,
+          // Extended fields from custom attributes - note the exact case matches Cognito
+          countryCode: attrs['custom:countryCode'] || '+1',
+          countryIso2: attrs['custom:countryIso2'] || 'US',
+          language: attrs['custom:language'] || 'en',
+          // Convert string to boolean for form state
+          newsletter: attrs['custom:newsletter'] === 'true',
+          twoFactor: attrs['custom:twoFactor'] === 'true',
           
-          
-          countryCode: extendedData.countryCode || '+1',
-          countryIso2: extendedData.countryIso2 || 'US',
-          language: extendedData.language || 'en',
-          newsletter: extendedData.newsletter !== undefined ? extendedData.newsletter : false,
-          twoFactor: extendedData.twoFactor !== undefined ? extendedData.twoFactor : false,
-          
-          
-          avatarUrl: extendedData.avatarUrl || '',
-          bio: extendedData.bio || '',
-          city: extendedData.city || '',
-          country: extendedData.country || '',
-          dateOfBirth: extendedData.dateOfBirth || '',
-          gender: extendedData.gender || '',
-          timezone: extendedData.timezone || ''
+          // Other fields from custom attributes - note the exact case matches Cognito
+          avatarUrl: attrs['custom:avatarUrl'] || '',
+          bio: attrs['custom:bio'] || '',
+          city: attrs['custom:city'] || '',
+          country: attrs['custom:country'] || '',
+          dateOfBirth: attrs['custom:dateOfBirth'] || '',
+          gender: attrs['custom:gender'] || '',
+          timezone: attrs['custom:timezone'] || ''
         };
         
         console.log('Merged form data:', formData);
         
           
-        if (formData.phone && !extendedData.countryCode) {
+        if (formData.phone && !attrs['custom:countryCode']) {
           const match = COUNTRY_OPTIONS.find((o) => formData.phone.startsWith(o.dial));
           if (match) {
             formData.countryCode = match.dial;
@@ -341,42 +334,47 @@ const Personal: React.FC = () => {
     (async () => {
       try {
         
+        // Prepare all user attributes for AWS Cognito
         const updates: Record<string, string> = {
+          // Standard Cognito attributes
           given_name: form.firstName?.trim() || '',
           family_name: form.lastName?.trim() || ''
         };
         
-          
+        // Only include custom attributes if they have values to avoid schema errors
+        const customUpdates: Record<string, string> = {
+          'custom:countryCode': form.countryCode,
+          'custom:countryIso2': form.countryIso2,
+          'custom:language': form.language,
+          'custom:newsletter': form.newsletter ? 'true' : 'false',
+          'custom:twoFactor': form.twoFactor ? 'true' : 'false',
+          'custom:avatarUrl': form.avatarUrl,
+          'custom:bio': form.bio,
+          'custom:city': form.city,
+          'custom:country': form.country,
+          'custom:dateOfBirth': form.dateOfBirth,
+          'custom:gender': form.gender,
+          'custom:timezone': form.timezone
+        };
+        
+        // Only add non-empty custom attributes to updates
+        Object.entries(customUpdates).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            updates[key] = value;
+          }
+        });
+        
+        // Email: if provided, set; Cognito may send a verification to new email
         if (form.email?.trim()) updates.email = form.email.trim();
         
-        
+        // Phone: sanitize to E.164 (e.g., +1234567890)
         const raw = (form.phone || '').trim();
         if (raw) {
           const e164 = sanitizeE164(raw);
           if (e164) updates.phone_number = e164;
         }
         
-        
-        const extendedData = {
-          
-          countryCode: form.countryCode,
-          countryIso2: form.countryIso2,
-          
-          
-          avatarUrl: form.avatarUrl,
-          bio: form.bio,
-          city: form.city,
-          country: form.country,
-          dateOfBirth: form.dateOfBirth,
-          gender: form.gender,
-          timezone: form.timezone,
-          language: form.language,
-          newsletter: form.newsletter,
-          twoFactor: form.twoFactor
-        };
-        
-        localStorage.setItem('userProfileData', JSON.stringify(extendedData));
-        console.log('Saved extended profile data:', extendedData);
+        console.log('Saving to AWS Cognito:', updates);
         
         console.log('Saving user attributes to AWS Cognito:', updates);
         await updateUserAttributes({ userAttributes: updates });
