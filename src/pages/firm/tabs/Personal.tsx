@@ -5,7 +5,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../../amplify/data/resource';
 import { useAlert } from '../../../components/AlertProvider';
 
-// Country list restricted per request: American, Philippines, Indian, England, Australian
+
 const COUNTRY_OPTIONS = [
   { iso2: 'US', name: 'United States', dial: '+1' },
   { iso2: 'PH', name: 'Philippines', dial: '+63' },
@@ -46,43 +46,43 @@ const Personal: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
 
-  // Load user data from both Cognito and localStorage
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         console.log('Loading user data...');
         
-        // 1. Load standard attributes from Cognito
+        
         const attrs = await fetchUserAttributes();
         console.log('Cognito attributes:', attrs);
         
         if (!mounted) return;
         
-        // 2. Load extended attributes from localStorage
+        
         const storedData = localStorage.getItem('userProfileData');
         const extendedData = storedData ? JSON.parse(storedData) : {};
         console.log('Extended profile data:', extendedData);
         
-        // 3. Map all fields to form state
+        
         const formData = {
-          // Standard Cognito fields
+          
           firstName: attrs.given_name || attrs.name?.split(' ')[0] || '',
           lastName: attrs.family_name || attrs.name?.split(' ').slice(1).join(' ') || '',
           email: attrs.email || '',
           phone: attrs.phone_number || '',
           
-          // Extended fields from localStorage
+         
           ...extendedData,
           
-          // Ensure required fields have defaults
+          
           countryCode: extendedData.countryCode || '+1',
           countryIso2: extendedData.countryIso2 || 'US',
           language: extendedData.language || 'en',
           newsletter: extendedData.newsletter !== undefined ? extendedData.newsletter : false,
           twoFactor: extendedData.twoFactor !== undefined ? extendedData.twoFactor : false,
           
-          // Other fields with empty defaults
+          
           avatarUrl: extendedData.avatarUrl || '',
           bio: extendedData.bio || '',
           city: extendedData.city || '',
@@ -94,7 +94,7 @@ const Personal: React.FC = () => {
         
         console.log('Merged form data:', formData);
         
-        // If we have a phone number but no country code, try to detect it
+          
         if (formData.phone && !extendedData.countryCode) {
           const match = COUNTRY_OPTIONS.find((o) => formData.phone.startsWith(o.dial));
           if (match) {
@@ -103,7 +103,7 @@ const Personal: React.FC = () => {
           }
         }
         
-        // Format phone number if needed
+       
         if (formData.phone && formData.countryCode) {
           formData.phone = formData.phone.startsWith(formData.countryCode)
             ? `${formData.countryCode} ${formData.phone.slice(formData.countryCode.length).trim()}`
@@ -122,8 +122,8 @@ const Personal: React.FC = () => {
           return next;
         });
       } catch (e) {
-        // ignore; user may be unauthenticated briefly
-        // console.error('Failed to load user attributes', e);
+    
+      
       }
     })();
     return () => {
@@ -168,8 +168,8 @@ const Personal: React.FC = () => {
       return;
     }
     const stripped = raw
-      .replace(/^\+\d{1,4}\s*/, '') // remove any leading +NNN
-      .replace(new RegExp('^' + escapeRegExp(dial) + '\\s*'), ''); // remove selected dial if present
+      .replace(/^\+\d{1,4}\s*/, '') 
+      .replace(new RegExp('^' + escapeRegExp(dial) + '\\s*'), ''); 
     const next = `${dial} ${stripped}`.replace(/\s+/g, ' ').trimEnd();
     setForm((prev) => ({ ...prev, phone: next }));
     if (touched.phone) {
@@ -190,9 +190,9 @@ const Personal: React.FC = () => {
     }
   };
 
-  // When the selected country code changes, prefix or replace the phone's dialing code.
+  
   useEffect(() => {
-    // Only adjust while editing to avoid surprising changes in read-only mode
+    
     if (!editing) return;
     const phone = (form.phone || '').trim();
     const dial = form.countryCode || '';
@@ -203,7 +203,7 @@ const Personal: React.FC = () => {
       return;
     }
 
-    const leadingCode = /^\+\d{1,4}/; // matches a leading +NNN.. dialing code
+    const leadingCode = /^\+\d{1,4}/; 
     if (leadingCode.test(phone)) {
       const rest = phone.replace(leadingCode, '').trimStart();
       const next = `${dial} ${rest}`.trimEnd();
@@ -213,12 +213,12 @@ const Personal: React.FC = () => {
     }
   }, [form.countryCode, editing]);
 
-  // When entering edit mode and phone is empty, prefill with current country code
+  
   useEffect(() => {
     if (editing && !(form.phone || '').trim() && form.countryCode) {
       setForm((prev) => ({ ...prev, phone: `${prev.countryCode} ` }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [editing]);
 
   const validateField = (key: keyof typeof form, value: any): string => {
@@ -270,7 +270,7 @@ const Personal: React.FC = () => {
     return next;
   };
 
-  // Convert mixed-format input to E.164 (+<digits>) using current country code when needed
+  
   const sanitizeE164 = (input: string): string | null => {
     if (!input) return null;
     const only = input.replace(/[^0-9+]/g, '');
@@ -340,29 +340,29 @@ const Personal: React.FC = () => {
     setSaving(true);
     (async () => {
       try {
-        // 1. Update standard Cognito attributes
+        
         const updates: Record<string, string> = {
           given_name: form.firstName?.trim() || '',
           family_name: form.lastName?.trim() || ''
         };
         
-        // Email: if provided, set; Cognito may send a verification to new email
+          
         if (form.email?.trim()) updates.email = form.email.trim();
         
-        // Phone: sanitize to E.164 (e.g., +1234567890)
+        
         const raw = (form.phone || '').trim();
         if (raw) {
           const e164 = sanitizeE164(raw);
           if (e164) updates.phone_number = e164;
         }
         
-        // 2. Save extended attributes to localStorage
+        
         const extendedData = {
-          // Basic info
+          
           countryCode: form.countryCode,
           countryIso2: form.countryIso2,
           
-          // Additional profile fields
+          
           avatarUrl: form.avatarUrl,
           bio: form.bio,
           city: form.city,
@@ -382,7 +382,7 @@ const Personal: React.FC = () => {
         await updateUserAttributes({ userAttributes: updates });
         console.log('Successfully updated user attributes in AWS Cognito');
 
-        // Also persist overlapping fields to Amplify Data (Firm)
+        
         try {
           const emailBefore = (snapshotRef.current?.email || '').trim();
           const targetEmailRaw = emailBefore || (form.email?.trim() || '');
@@ -400,7 +400,7 @@ const Personal: React.FC = () => {
                 administrator_first_name: form.firstName?.trim() || firm.administrator_first_name,
                 administrator_last_name: form.lastName?.trim() || firm.administrator_last_name,
               });
-              // Persist Firm ID for Work tab to fetch by ID (strong consistency)
+              
               try { localStorage.setItem('c2b:myFirmId', String(firm.id)); } catch {}
             } else {
               const id = `firm-not-found-${Date.now()}`;
@@ -418,7 +418,6 @@ const Personal: React.FC = () => {
                     state: '',
                     zip: '',
                     firm_type: 'Other',
-                    // Extended business fields with safe defaults
                     dba: '',
                     dot: '',
                     mc: '',
@@ -431,7 +430,6 @@ const Personal: React.FC = () => {
                     w9_on_file: false,
                     brand_color: '#0d6efd',
                     notes: '',
-                    // Counters
                     load_posts: 0,
                     truck_posts: 0,
                   });
@@ -439,7 +437,7 @@ const Personal: React.FC = () => {
                     title: 'Firm created',
                     message: 'A new Firm record was created and linked to your profile.',
                   });
-                  // Attempt to look up the created Firm and persist its ID
+                  
                   try {
                     const lookup = await client.models.Firm.list({
                       filter: { administrator_email: { eq: (form.email?.trim() || targetEmail).toLowerCase() } },
@@ -499,13 +497,10 @@ const Personal: React.FC = () => {
   };
 
   const beginEdit = () => {
-    // Snapshot current form as the baseline for dirty check and cancel
     snapshotRef.current = form;
-    // Reset validation states
     setSubmitAttempted(false);
     setTouched({});
     setErrors({});
-    // Enter edit mode
     setEditing(true);
   };
 
@@ -837,7 +832,7 @@ const Personal: React.FC = () => {
 
 export default Personal;
 
-/* styled-components (below component per project rules) */
+/* styled-components (below component per project rules) */   
 const Form = styled.form`
   display: flex;
   flex-direction: column;
