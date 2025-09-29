@@ -46,48 +46,78 @@ const Personal: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
 
-  // Load current Cognito user attributes to prefill profile
+  // Load user data from both Cognito and localStorage
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        console.log('Fetching user attributes from AWS Cognito...');
+        console.log('Loading user data...');
+        
+        // 1. Load standard attributes from Cognito
         const attrs = await fetchUserAttributes();
-        console.log('Received user attributes:', attrs);
+        console.log('Cognito attributes:', attrs);
         
         if (!mounted) return;
         
-        const first = attrs.given_name || '';
-        const last = attrs.family_name || '';
-        const email = attrs.email || '';
-        const phone = attrs.phone_number || '';
+        // 2. Load extended attributes from localStorage
+        const storedData = localStorage.getItem('userProfileData');
+        const extendedData = storedData ? JSON.parse(storedData) : {};
+        console.log('Extended profile data:', extendedData);
         
-        console.log('Extracted user data:', { first, last, email, phone });
-        // Derive country code and iso2 from phone if possible
-        let countryCode = ' +1'.trim();
-        let countryIso2 = 'US';
-        if (phone.startsWith('+')) {
-          const match = COUNTRY_OPTIONS.find((o) => phone.startsWith(o.dial));
+        // 3. Map all fields to form state
+        const formData = {
+          // Standard Cognito fields
+          firstName: attrs.given_name || attrs.name?.split(' ')[0] || '',
+          lastName: attrs.family_name || attrs.name?.split(' ').slice(1).join(' ') || '',
+          email: attrs.email || '',
+          phone: attrs.phone_number || '',
+          
+          // Extended fields from localStorage
+          ...extendedData,
+          
+          // Ensure required fields have defaults
+          countryCode: extendedData.countryCode || '+1',
+          countryIso2: extendedData.countryIso2 || 'US',
+          language: extendedData.language || 'en',
+          newsletter: extendedData.newsletter !== undefined ? extendedData.newsletter : false,
+          twoFactor: extendedData.twoFactor !== undefined ? extendedData.twoFactor : false,
+          
+          // Other fields with empty defaults
+          avatarUrl: extendedData.avatarUrl || '',
+          bio: extendedData.bio || '',
+          city: extendedData.city || '',
+          country: extendedData.country || '',
+          dateOfBirth: extendedData.dateOfBirth || '',
+          gender: extendedData.gender || '',
+          timezone: extendedData.timezone || ''
+        };
+        
+        console.log('Merged form data:', formData);
+        
+        // If we have a phone number but no country code, try to detect it
+        if (formData.phone && !extendedData.countryCode) {
+          const match = COUNTRY_OPTIONS.find((o) => formData.phone.startsWith(o.dial));
           if (match) {
-            countryCode = match.dial;
-            countryIso2 = match.iso2;
+            formData.countryCode = match.dial;
+            formData.countryIso2 = match.iso2;
           }
         }
-        const displayPhone = phone
-          ? (phone.startsWith(countryCode)
-              ? `${countryCode} ${phone.slice(countryCode.length).trim()}`
-              : phone)
-          : '';
+        
+        // Format phone number if needed
+        if (formData.phone && formData.countryCode) {
+          formData.phone = formData.phone.startsWith(formData.countryCode)
+            ? `${formData.countryCode} ${formData.phone.slice(formData.countryCode.length).trim()}`
+            : formData.phone;
+        }
+        
+        console.log('Final form data before setting state:', formData);
+        
         setForm((prev) => {
           const next = {
             ...prev,
-            firstName: first,
-            lastName: last,
-            email,
-            phone: displayPhone,
-            countryCode,
-            countryIso2,
+            ...formData
           };
+          console.log('Setting form state:', next);
           snapshotRef.current = next;
           return next;
         });
@@ -310,19 +340,43 @@ const Personal: React.FC = () => {
     setSaving(true);
     (async () => {
       try {
-        // Update Cognito user attributes
+        // 1. Update standard Cognito attributes
         const updates: Record<string, string> = {
           given_name: form.firstName?.trim() || '',
-          family_name: form.lastName?.trim() || '',
+          family_name: form.lastName?.trim() || ''
         };
+        
         // Email: if provided, set; Cognito may send a verification to new email
         if (form.email?.trim()) updates.email = form.email.trim();
+        
         // Phone: sanitize to E.164 (e.g., +1234567890)
         const raw = (form.phone || '').trim();
         if (raw) {
           const e164 = sanitizeE164(raw);
           if (e164) updates.phone_number = e164;
         }
+        
+        // 2. Save extended attributes to localStorage
+        const extendedData = {
+          // Basic info
+          countryCode: form.countryCode,
+          countryIso2: form.countryIso2,
+          
+          // Additional profile fields
+          avatarUrl: form.avatarUrl,
+          bio: form.bio,
+          city: form.city,
+          country: form.country,
+          dateOfBirth: form.dateOfBirth,
+          gender: form.gender,
+          timezone: form.timezone,
+          language: form.language,
+          newsletter: form.newsletter,
+          twoFactor: form.twoFactor
+        };
+        
+        localStorage.setItem('userProfileData', JSON.stringify(extendedData));
+        console.log('Saved extended profile data:', extendedData);
         
         console.log('Saving user attributes to AWS Cognito:', updates);
         await updateUserAttributes({ userAttributes: updates });
