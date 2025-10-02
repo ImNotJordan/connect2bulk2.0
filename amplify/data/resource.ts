@@ -1,6 +1,20 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { sendResetEmail as sendResetEmailFn } from '../functions/sendResetEmail/resource';
 import { deleteCognitoUser as deleteCognitoUserFn } from '../functions/deleteCognitoUser/resource';
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+
+
+const client = new DynamoDBClient({ region: process.env.AWS_REGION });
+export const docClient = DynamoDBDocumentClient.from(client);
+
+export async function insertLoad(payload: any) {
+  const command = new PutCommand({
+    TableName: "Load",   // <-- your table name
+    Item: payload,
+  });
+  return docClient.send(command);
+}
 
 // Define enum for firm_type
 const FirmType = a.enum(['Carrier', 'Shipper', 'Broker', 'Other']);
@@ -37,7 +51,10 @@ const schema = a.schema({
       load_posts: a.integer(),
       truck_posts: a.integer(),
     })
-    .authorization((allow) => [allow.guest()]),
+    .authorization((allow) => [
+      allow.authenticated().to(['read', 'create', 'update', 'delete']),
+      allow.owner()
+    ]),
 
   // App user directory for firms (lightweight metadata, separate from Cognito)
   User: a
