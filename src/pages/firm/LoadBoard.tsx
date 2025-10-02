@@ -1,21 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import FolderTabs from '../../components/FolderTabs';
 import { Icon } from '@iconify-icon/react';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '../../../amplify/data/resource';
 import { useAlert } from '../../components/AlertProvider';
 import AllFirmLoads from './tabs/AllFirmLoads';
 import { TRAILER_TYPES, TRAILER_TYPES_SET, toAllCaps } from './constants';
 import { useLoadContext } from '../../context/LoadContext';
 
- 
-
 const LoadBoard: React.FC = () => {
-  // Amplify Data client
-  const client = useMemo(() => generateClient<Schema>(), []);
   const { info, warning } = useAlert();
-  const { refreshToken, incrementRefreshToken, setLastCreated } = useLoadContext();
+  const { setLastCreated, refreshToken } = useLoadContext();
 
   // Add Load modal state
   const [isAddOpen, setAddOpen] = useState(false);
@@ -44,9 +38,9 @@ const LoadBoard: React.FC = () => {
   };
 
   // Refs for date inputs and handlers to open native calendar
-  const pickupDateInputRef = useRef<HTMLInputElement | null>(null);
-  const deliveryDateInputRef = useRef<HTMLInputElement | null>(null);
-  
+  const pickupDateInputRef = React.createRef<HTMLInputElement | null>();
+  const deliveryDateInputRef = React.createRef<HTMLInputElement | null>();
+
   const openDatePicker = (ref: React.RefObject<HTMLInputElement | null>) => {
     const el = ref.current as any;
     try {
@@ -59,8 +53,6 @@ const LoadBoard: React.FC = () => {
     }
     ref.current?.focus();
   };
-
-  
 
   const onChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -86,13 +78,13 @@ const LoadBoard: React.FC = () => {
     setError(null);
     setAddOpen(false);
   };
-  
+
   // Initialize form with a random load number when modal opens
-  useEffect(() => {
+  React.useEffect(() => {
     if (isAddOpen) {
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
-        load_number: generateLoadNumber()
+        load_number: generateLoadNumber(),
       }));
     }
   }, [isAddOpen]);
@@ -216,6 +208,32 @@ const LoadBoard: React.FC = () => {
     return errors.length ? errors.join(' ') : null;
   };
 
+  const handleAddLoad = (loadData: any) => {
+    try {
+      const newLoad = {
+        ...loadData,
+        id: `local-${Date.now()}`,
+        status: 'AVAILABLE',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      console.debug('[LoadBoard] Creating local load:', newLoad);
+
+      // Show success message
+      info({ message: 'Load created successfully (local only)' });
+
+      // Update the last created load for the AllFirmLoads component
+      setLastCreated(newLoad);
+
+      // Close the dialog
+      setAddOpen(false);
+    } catch (error) {
+      console.error('Error creating load:', error);
+      warning({ message: 'Failed to create load. Please try again.' });
+    }
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -251,30 +269,7 @@ const LoadBoard: React.FC = () => {
         return;
       }
 
-      const created = await client.models.Load.create(payload as any);
-      console.debug('[LoadBoard] Create response:', created);
-      // Reset and close
-      setForm({
-        load_number: '',
-        pickup_date: '',
-        delivery_date: '',
-        origin: '',
-        destination: '',
-        trailer_type: '',
-        equipment_requirement: '',
-        miles: '',
-        rate: '',
-        frequency: 'once',
-        comment: '',
-      });
-      setAddOpen(false);
-      // optimistic: share the created item (shape may be in created.data)
-      const optimistic = (created as any)?.data ?? payload;
-      setLastCreated(optimistic);
-      console.debug('[LoadBoard] lastCreated set to:', optimistic);
-      // notify table to refresh
-      incrementRefreshToken();
-      // TODO: refresh table data once data listing is implemented
+      handleAddLoad(payload);
     } catch (err: any) {
       console.error('Create Load failed', err);
       setError(err?.message ?? 'Failed to create load');

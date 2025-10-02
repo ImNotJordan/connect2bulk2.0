@@ -1,44 +1,60 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { Icon } from '@iconify-icon/react';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '../../../../amplify/data/resource';
 import { useLoadContext } from '../../../context/LoadContext';
- 
 
 type Props = { onAddNewLoad: () => void; };
 
 const AllFirmLoads: React.FC<Props> = ({ onAddNewLoad }) => {
-  const client = useMemo(() => generateClient<Schema>(), []);
   // Search state
   const [searchText, setSearchText] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Data state
-  const { loadData: rows, setLoadData: setRows, refreshToken, lastCreated } = useLoadContext();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { loadData: rows, setLoadData: setRows, lastCreated } = useLoadContext();
+  const [error] = useState<string | null>(null);
+  const [localRows, setLocalRows] = useState<any[]>([]);
+  const loading = false; // Loading state not needed for local data
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Initialize with empty array
+  useEffect(() => {
+    if (rows) {
+      setLocalRows(rows);
+    } else {
+      setRows?.([]);
+      setLocalRows([]);
+    }
+  }, [rows, setRows]);
+
+  // Handle new loads added via context
+  useEffect(() => {
+    if (lastCreated && !localRows.some(l => l.id === lastCreated.id)) {
+      const updatedRows = [lastCreated, ...localRows];
+      setLocalRows(updatedRows);
+      setRows?.(updatedRows);
+    }
+  }, [lastCreated, localRows, setRows]);
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(e.target.value);
-  };
+  }, []);
 
-  const clearSearch = () => {
+  const clearSearch = useCallback(() => {
     setSearchText('');
     searchInputRef.current?.focus();
-  };
+  }, []);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Wire up to data listing once implemented
-  };
+    // Search is handled by the filteredRows calculation
+  }, []);
 
-  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault();
-      clearSearch();
+      setSearchText('');
     }
-  };
+  }, []);
 
   // Global shortcut: Ctrl/Cmd+K focuses the search box
   useEffect(() => {
@@ -53,71 +69,10 @@ const AllFirmLoads: React.FC<Props> = ({ onAddNewLoad }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Fetch loads
-  const fetchRows = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await client.models.Load.list();
-      // Debug: Inspect raw response shape
-      console.debug('[AllFirmLoads] list() response:', res);
-      const raw = (res as any)?.data;
-      const listCandidate = Array.isArray(raw)
-        ? raw
-        : Array.isArray((raw as any)?.items)
-        ? (raw as any).items
-        : Array.isArray((res as any)?.items)
-        ? (res as any).items
-        : [];
-      const list = Array.isArray(listCandidate) ? listCandidate : [];
-      // Sort by newest first using created_at, then createdAt, then pickup_date
-      const parseDate = (x: any) => {
-        const v = x?.created_at ?? x?.createdAt ?? x?.pickup_date;
-        const d = v ? new Date(v) : null;
-        return d && !isNaN(d.getTime()) ? d.getTime() : 0;
-      };
-      const sorted = [...list].sort((a, b) => parseDate(b) - parseDate(a));
-      // Merge optimistic lastCreated if not present in fetched list
-      const key = (x: any) => x?.id ?? `${x?.load_number ?? ''}-${x?.created_at ?? ''}`;
-      const merged = lastCreated
-        ? (sorted.some((r) => key(r) === key(lastCreated)) ? sorted : [lastCreated, ...sorted])
-        : sorted;
-      console.debug('[AllFirmLoads] fetched count:', list.length, 'merged count:', merged.length);
-      setRows(merged);
-    } catch (e: any) {
-      console.error('[AllFirmLoads] list() error:', e);
-      setError(e?.message ?? 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const formatCurrency = useCallback((n?: number) =>
+    typeof n === 'number' && !isNaN(n) ? `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '', []);
 
-  useEffect(() => {
-    // Only fetch if we don't already have data, or if refreshToken changes
-    if (rows.length === 0 || refreshToken > 0) {
-      fetchRows();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshToken]);
-
-  // Optimistic update: prepend the most recently created item
-  useEffect(() => {
-    if (!lastCreated) return;
-    setRows((prev) => {
-      // dedupe by id if present else by composite key
-      const key = (x: any) => x?.id ?? `${x?.load_number ?? ''}-${x?.created_at ?? ''}`;
-      const lcKey = key(lastCreated);
-      if (!lcKey) return prev;
-      if (prev.some((r) => key(r) === lcKey)) return prev;
-      return [lastCreated, ...prev];
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastCreated, setRows]);
-
-  const formatCurrency = (n?: number) =>
-    typeof n === 'number' && !isNaN(n) ? `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '';
-
-  const computeAge = (iso?: string, pickup?: string) => {
+  const computeAge = useCallback((iso?: string, pickup?: string) => {
     const base = iso || pickup;
     if (!base) return '';
     const d = new Date(base);
@@ -129,7 +84,25 @@ const AllFirmLoads: React.FC<Props> = ({ onAddNewLoad }) => {
     if (diffHours > 0) return `${diffHours}h`;
     const diffMins = Math.floor(diffMs / (60 * 1000));
     return `${Math.max(diffMins, 0)}m`;
-  };
+  }, []);
+
+  // Filter rows based on search text
+  const filteredRows = useMemo(() => {
+    if (!searchText.trim()) return localRows;
+    
+    const search = searchText.toLowerCase();
+    return localRows.filter(row => {
+      return (
+        (row.load_number || '').toLowerCase().includes(search) ||
+        (row.origin || '').toLowerCase().includes(search) ||
+        (row.destination || '').toLowerCase().includes(search) ||
+        (row.trailer_type || '').toLowerCase().includes(search) ||
+        (row.status || '').toLowerCase().includes(search) ||
+        (row.equipment_requirement || '').toLowerCase().includes(search) ||
+        (row.comment || '').toLowerCase().includes(search)
+      );
+    });
+  }, [localRows, searchText]);
 
   return (
     <>
@@ -165,13 +138,15 @@ const AllFirmLoads: React.FC<Props> = ({ onAddNewLoad }) => {
         <RightActions>
           <RefreshBtn
             type="button"
-            onClick={fetchRows}
-            aria-label="Refresh table"
-            disabled={loading}
-            title="Refresh"
+            onClick={() => {
+              // Just reset the search on refresh
+              setSearchText('');
+            }}
+            aria-label="Reset search"
+            title="Reset search"
           >
             <Icon icon="mdi:refresh" />
-            <span>Refresh</span>
+            <span>Reset</span>
           </RefreshBtn>
           <AddBtn type="button" onClick={onAddNewLoad} aria-label="Add new load">
             Add New Load
@@ -213,7 +188,7 @@ const AllFirmLoads: React.FC<Props> = ({ onAddNewLoad }) => {
                 <td colSpan={12}>No loads found.</td>
               </tr>
             )}
-            {!loading && !error && rows.map((r: any) => (
+            {!loading && !error && filteredRows.map((r: any) => (
               <tr key={r.id ?? `${r.load_number}-${r.created_at}`}>
                 <td>{computeAge(r.created_at, r.pickup_date)}</td>
                 <td>{r.load_number}</td>
