@@ -220,26 +220,13 @@ const LoadBoard: React.FC = () => {
     e.preventDefault();
     setError(null);
     setAdding(true);
-    
     try {
-      // Get the current authenticated user's session
-      const { getCurrentUser } = await import('aws-amplify/auth');
-      let cognitoUser;
-      try {
-        cognitoUser = await getCurrentUser();
-        console.log('[LoadBoard] Current Cognito user:', cognitoUser);
-      } catch (authError) {
-        console.error('[LoadBoard] Error getting current user:', authError);
-        throw new Error('Authentication required. Please sign in again.');
-      }
-
       const validation = validateForm();
       if (validation) {
         setError(validation);
         setAdding(false);
         return;
       }
-      
       const payload = {
         load_number: form.load_number.trim(),
         pickup_date: form.pickup_date.trim(),
@@ -253,84 +240,44 @@ const LoadBoard: React.FC = () => {
         frequency: form.frequency,
         comment: form.comment.trim(),
         created_at: new Date().toISOString(),
-        owner: cognitoUser.userId, // Add the Cognito user ID as the owner
       } as const;
 
-      console.log('[LoadBoard] Creating Load with payload:', {
-        ...payload,
-        // Don't log sensitive data in production
-        rate: payload.rate ? '***' : undefined,
-        // Add metadata
-        metadata: {
-          timestamp: new Date().toISOString(),
-          userAgent: navigator.userAgent,
-        }
-      });
+      console.debug('[LoadBoard] Creating Load with payload:', payload);
 
       // Basic required fields check
       if (!payload.load_number || !payload.pickup_date || !payload.origin || !payload.destination) {
-        const errorMsg = 'Please fill Load Number, Pickup Date, Origin and Destination.';
-        console.error('[LoadBoard] Validation failed:', errorMsg);
-        setError(errorMsg);
+        setError('Please fill Load Number, Pickup Date, Origin and Destination.');
         setAdding(false);
         return;
       }
 
-      console.log('[LoadBoard] Attempting to save to DynamoDB...');
-      const startTime = Date.now();
-      
-      try {
-        const created = await client.models.Load.create(payload as any);
-        const endTime = Date.now();
-        
-        console.log('[LoadBoard] Successfully saved to DynamoDB:', {
-          duration: `${endTime - startTime}ms`,
-          loadId: created.data?.id,
-          loadNumber: created.data?.load_number,
-          // Removed $metadata access as it's not in the type definition
-        });
-        
-        // Reset and close
-        setForm({
-          load_number: '',
-          pickup_date: '',
-          delivery_date: '',
-          origin: '',
-          destination: '',
-          trailer_type: '',
-          equipment_requirement: '',
-          miles: '',
-          rate: '',
-          frequency: 'once',
-          comment: '',
-        });
-        
-        setAddOpen(false);
-        const optimistic = (created as any)?.data ?? payload;
-        setLastCreated(optimistic);
-        
-        // Notify table to refresh
-        incrementRefreshToken();
-        
-        console.log('[LoadBoard] Load created successfully, refresh triggered');
-      } catch (error) {
-        const dbError = error as Error;
-        console.error('[LoadBoard] DynamoDB Error:', {
-          error: dbError,
-          errorMessage: dbError.message,
-          errorStack: dbError.stack,
-          timestamp: new Date().toISOString(),
-        });
-        throw dbError;
-      }
-    } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to create load';
-      console.error('[LoadBoard] Create Load failed:', {
-        error: err,
-        errorMessage,
-        timestamp: new Date().toISOString(),
+      const created = await client.models.Load.create(payload as any);
+      console.debug('[LoadBoard] Create response:', created);
+      // Reset and close
+      setForm({
+        load_number: '',
+        pickup_date: '',
+        delivery_date: '',
+        origin: '',
+        destination: '',
+        trailer_type: '',
+        equipment_requirement: '',
+        miles: '',
+        rate: '',
+        frequency: 'once',
+        comment: '',
       });
-      setError(errorMessage);
+      setAddOpen(false);
+      // optimistic: share the created item (shape may be in created.data)
+      const optimistic = (created as any)?.data ?? payload;
+      setLastCreated(optimistic);
+      console.debug('[LoadBoard] lastCreated set to:', optimistic);
+      // notify table to refresh
+      incrementRefreshToken();
+      // TODO: refresh table data once data listing is implemented
+    } catch (err: any) {
+      console.error('Create Load failed', err);
+      setError(err?.message ?? 'Failed to create load');
     } finally {
       setAdding(false);
     }
