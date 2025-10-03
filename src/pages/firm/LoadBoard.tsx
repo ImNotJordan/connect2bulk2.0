@@ -1,11 +1,49 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import styled from 'styled-components';
 import FolderTabs from '../../components/FolderTabs';
 import { Icon } from '@iconify-icon/react';
 import { useAlert } from '../../components/AlertProvider';
 import AllFirmLoads from './tabs/AllFirmLoads';
-import { TRAILER_TYPES, TRAILER_TYPES_SET, toAllCaps } from './constants';
+import { TRAILER_TYPES } from './constants';
 import { useLoadContext } from '../../context/LoadContext';
+
+
+
+const TRAILER_TYPES_SET = new Set(TRAILER_TYPES.map((t) => toAllCaps(t)));
+
+function toAllCaps(s: string) {
+  return (s || "").toUpperCase();
+}
+
+type FormState = {
+  load_number: string;
+  pickup_date: string;
+  delivery_date: string;
+  origin: string;
+  destination: string;
+  trailer_type: string;
+  equipment_requirement: string;
+  miles: string;
+  rate: string;
+  frequency: string;
+  comment: string;
+};
+
+const defaultForm: FormState = {
+  load_number: "",
+  pickup_date: "",
+  delivery_date: "",
+  origin: "",
+  destination: "",
+  trailer_type: "",
+  equipment_requirement: "",
+  miles: "",
+  rate: "",
+  frequency: "once",
+  comment: "",
+};
+
+const API_URL = import.meta.env.VITE_API_URL || "https://jk60keozsc.execute-api.us-east-1.amazonaws.com/prod";
 
 const LoadBoard: React.FC = () => {
   const { info, warning } = useAlert();
@@ -15,31 +53,19 @@ const LoadBoard: React.FC = () => {
   const [isAddOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    load_number: '',
-    pickup_date: '',
-    delivery_date: '',
-    origin: '',
-    destination: '',
-    trailer_type: '',
-    equipment_requirement: '',
-    miles: '',
-    rate: '',
-    frequency: 'once',
-    comment: '',
-  });
+  const [form, setForm] = useState<FormState>({ ...defaultForm });
+
+  // Refs for date inputs and handlers to open native calendar
+  const pickupDateInputRef = useRef<HTMLInputElement | null>(null);
+  const deliveryDateInputRef = useRef<HTMLInputElement | null>(null);
 
   // Generate a unique random load number
   const generateLoadNumber = () => {
-    const prefix = 'LN';
+    const prefix = "LN";
     const timestamp = Date.now().toString().slice(-6);
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
     return `${prefix}-${timestamp}-${random}`;
   };
-
-  // Refs for date inputs and handlers to open native calendar
-  const pickupDateInputRef = React.createRef<HTMLInputElement | null>();
-  const deliveryDateInputRef = React.createRef<HTMLInputElement | null>();
 
   const openDatePicker = (ref: React.RefObject<HTMLInputElement | null>) => {
     const el = ref.current as any;
@@ -57,16 +83,16 @@ const LoadBoard: React.FC = () => {
   const onChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
-    if (name === 'pickup_date' || name === 'delivery_date') {
+    const { name, value } = e.target as HTMLInputElement;
+    if (name === "pickup_date" || name === "delivery_date") {
       // Sanitize: enforce 4-digit year max, keep YYYY-MM-DD shape
-      const parts = value.split('-');
+      const parts = value.split("-");
       if (parts[0] && parts[0].length > 4) parts[0] = parts[0].slice(0, 4);
-      const sanitized = parts.join('-');
+      const sanitized = parts.join("-");
       setForm((prev) => ({ ...prev, [name]: sanitized }));
       return;
     }
-    if (name === 'trailer_type') {
+    if (name === "trailer_type") {
       setForm((prev) => ({ ...prev, trailer_type: toAllCaps(value) }));
       return;
     }
@@ -77,25 +103,23 @@ const LoadBoard: React.FC = () => {
     if (adding) return;
     setError(null);
     setAddOpen(false);
+    setForm({ ...defaultForm });
   };
 
   // Initialize form with a random load number when modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (isAddOpen) {
-      setForm((prev) => ({
-        ...prev,
-        load_number: generateLoadNumber(),
-      }));
+      setForm((prev) => ({ ...prev, load_number: generateLoadNumber() }));
     }
   }, [isAddOpen]);
 
   const onCancel = () => {
     if (adding) return;
     const { close } = warning({
-      title: 'Discard this load?',
-      message: 'Your changes will be lost.',
+      title: "Discard this load?",
+      message: "Your changes will be lost.",
       autoClose: false,
-      position: 'top-right',
+      position: "top-right",
       action: (
         <ToastActionRow>
           <ToastPrimaryBtn
@@ -104,11 +128,11 @@ const LoadBoard: React.FC = () => {
               close();
               closeModal();
               info({
-                title: 'Cancelled',
-                message: 'Add New Load was cancelled.',
+                title: "Cancelled",
+                message: "Add New Load was cancelled.",
                 autoClose: true,
                 autoCloseDuration: 3500,
-                position: 'top-right',
+                position: "top-right",
               });
             }}
           >
@@ -125,119 +149,110 @@ const LoadBoard: React.FC = () => {
   const validateForm = (): string | null => {
     const errors: string[] = [];
     const ln = form.load_number.trim();
-    if (!ln) errors.push('Load Number is required.');
-    if (ln.length > 50) errors.push('Load Number must be 50 characters or less.');
+    if (!ln) errors.push("Load Number is required.");
+    if (ln.length > 50) errors.push("Load Number must be 50 characters or less.");
 
-    const pd = form.pickup_date.trim();
-    if (!pd) errors.push('Pickup Date is required.');
+    const pd = (form.pickup_date || "").trim();
+    if (!pd) errors.push("Pickup Date is required.");
     else {
       const m = /^([0-9]{4})-(\d{2})-(\d{2})$/.exec(pd);
-      if (!m) errors.push('Pickup Date must be in YYYY-MM-DD format.');
+      if (!m) errors.push("Pickup Date must be in YYYY-MM-DD format.");
       else {
         const year = parseInt(m[1], 10);
         const month = parseInt(m[2], 10);
         const day = parseInt(m[3], 10);
-        if (m[1].length !== 4) errors.push('Year must be 4 digits.');
-        if (year < 1900 || year > 2100) errors.push('Year must be between 1900 and 2100.');
-        if (month < 1 || month > 12) errors.push('Month must be 01-12.');
-        if (day < 1 || day > 31) errors.push('Day must be 01-31.');
+        if (m[1].length !== 4) errors.push("Year must be 4 digits.");
+        if (year < 1900 || year > 2100) errors.push("Year must be between 1900 and 2100.");
+        if (month < 1 || month > 12) errors.push("Month must be 01-12.");
+        if (day < 1 || day > 31) errors.push("Day must be 01-31.");
         const dt = new Date(pd);
-        if (isNaN(dt.getTime())) errors.push('Pickup Date is invalid.');
+        if (isNaN(dt.getTime())) errors.push("Pickup Date is invalid.");
       }
     }
 
     // Delivery date validation and ordering check
-    const dd = form.delivery_date.trim();
-    if (!dd) errors.push('Delivery Date is required.');
+    const dd = (form.delivery_date || "").trim();
+    if (!dd) errors.push("Delivery Date is required.");
     else {
       const md = /^([0-9]{4})-(\d{2})-(\d{2})$/.exec(dd);
-      if (!md) errors.push('Delivery Date must be in YYYY-MM-DD format.');
+      if (!md) errors.push("Delivery Date must be in YYYY-MM-DD format.");
       else {
         const year = parseInt(md[1], 10);
         const month = parseInt(md[2], 10);
         const day = parseInt(md[3], 10);
-        if (md[1].length !== 4) errors.push('Delivery year must be 4 digits.');
-        if (year < 1900 || year > 2100) errors.push('Delivery year must be between 1900 and 2100.');
-        if (month < 1 || month > 12) errors.push('Delivery month must be 01-12.');
-        if (day < 1 || day > 31) errors.push('Delivery day must be 01-31.');
+        if (md[1].length !== 4) errors.push("Delivery year must be 4 digits.");
+        if (year < 1900 || year > 2100) errors.push("Delivery year must be between 1900 and 2100.");
+        if (month < 1 || month > 12) errors.push("Delivery month must be 01-12.");
+        if (day < 1 || day > 31) errors.push("Delivery day must be 01-31.");
         const ddDate = new Date(dd);
         const pdDate = new Date(pd);
         if (!isNaN(ddDate.getTime()) && !isNaN(pdDate.getTime())) {
           if (ddDate.getTime() < pdDate.getTime()) {
-            errors.push('Delivery Date cannot be earlier than Pickup Date.');
+            errors.push("Delivery Date cannot be earlier than Pickup Date.");
           }
         }
       }
     }
 
     // Frequency validation
-    const allowedFreq = new Set(['once', 'daily', 'weekly', 'monthly']);
-    if (!allowedFreq.has((form.frequency || '').toLowerCase())) {
-      errors.push('Frequency must be one of: once, daily, weekly, monthly.');
+    const allowedFreq = new Set(["once", "daily", "weekly", "monthly"]);
+    if (!allowedFreq.has((form.frequency || "").toLowerCase())) {
+      errors.push("Frequency must be one of: once, daily, weekly, monthly.");
     }
 
-    if (!form.origin.trim()) errors.push('Origin is required.');
-    if (!form.destination.trim()) errors.push('Destination is required.');
+    if (!form.origin.trim()) errors.push("Origin is required.");
+    if (!form.destination.trim()) errors.push("Destination is required.");
 
     // Enforce Trailer Type to be required and match allowed list
     if (!form.trailer_type.trim()) {
-      errors.push('Trailer Type is required.');
+      errors.push("Trailer Type is required.");
     } else {
       const tt = toAllCaps(form.trailer_type.trim());
       if (!TRAILER_TYPES_SET.has(tt)) {
         errors.push(
-          'Trailer Type must match one of the allowed values: ' +
-            Array.from(TRAILER_TYPES_SET).join(', ') +
-            '.'
+          "Trailer Type must match one of the allowed values: " +
+            Array.from(TRAILER_TYPES_SET).join(", ") +
+            "."
         );
       }
     }
 
     if (form.miles) {
       const mi = parseInt(form.miles, 10);
-      if (isNaN(mi) || mi < 0) errors.push('Miles must be a non-negative integer.');
-      if (mi > 2000000) errors.push('Miles seems too large (> 2,000,000).');
+      if (isNaN(mi) || mi < 0) errors.push("Miles must be a non-negative integer.");
+      if (mi > 2000000) errors.push("Miles seems too large (> 2,000,000).");
     }
 
     if (form.rate) {
-      const r = parseFloat(form.rate);
-      if (isNaN(r) || r < 0) errors.push('Rate must be a non-negative number.');
-      if (r > 10000000) errors.push('Rate seems too large.');
+      const r = parseFloat(form.rate as any);
+      if (isNaN(r) || r < 0) errors.push("Rate must be a non-negative number.");
+      if (r > 10000000) errors.push("Rate seems too large.");
     }
 
-    return errors.length ? errors.join(' ') : null;
+    return errors.length ? errors.join(" ") : null;
   };
 
-  const handleAddLoad = (loadData: any) => {
-    try {
-      const newLoad = {
-        ...loadData,
-        id: `local-${Date.now()}`,
-        status: 'AVAILABLE',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+  const handleAddLoadLocal = (loadData: any) => {
+    // keep local-only fallback behavior: mark local id, setLastCreated, toast
+    const newLoad = {
+      ...loadData,
+      id: `local-${Date.now()}`,
+      status: "AVAILABLE",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-      console.debug('[LoadBoard] Creating local load:', newLoad);
-
-      // Show success message
-      info({ message: 'Load created successfully (local only)' });
-
-      // Update the last created load for the AllFirmLoads component
-      setLastCreated(newLoad);
-
-      // Close the dialog
-      setAddOpen(false);
-    } catch (error) {
-      console.error('Error creating load:', error);
-      warning({ message: 'Failed to create load. Please try again.' });
-    }
+    console.debug("[LoadBoard] Creating local load:", newLoad);
+    info({ message: "Load created successfully (local only)" });
+    setLastCreated(newLoad);
+    setAddOpen(false);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setAdding(true);
+
     try {
       const validation = validateForm();
       if (validation) {
@@ -245,7 +260,8 @@ const LoadBoard: React.FC = () => {
         setAdding(false);
         return;
       }
-      const payload = {
+
+      const payload: any = {
         load_number: form.load_number.trim(),
         pickup_date: form.pickup_date.trim(),
         delivery_date: form.delivery_date.trim(),
@@ -257,22 +273,56 @@ const LoadBoard: React.FC = () => {
         rate: form.rate ? parseFloat(form.rate) : undefined,
         frequency: form.frequency,
         comment: form.comment.trim(),
-        created_at: new Date().toISOString(),
-      } as const;
-
-      console.debug('[LoadBoard] Creating Load with payload:', payload);
+        status: "AVAILABLE",
+      };
 
       // Basic required fields check
       if (!payload.load_number || !payload.pickup_date || !payload.origin || !payload.destination) {
-        setError('Please fill Load Number, Pickup Date, Origin and Destination.');
+        setError("Please fill Load Number, Pickup Date, Origin and Destination.");
         setAdding(false);
         return;
       }
 
-      handleAddLoad(payload);
+      // If API URL is not configured, fallback to local
+      if (!API_URL) {
+        console.warn("VITE_API_URL not configured — falling back to local-only creation.");
+        handleAddLoadLocal(payload);
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/loads`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        // try to read body
+        let errText = res.statusText;
+        try {
+          const j = await res.json();
+          errText = j?.error || j?.message || JSON.stringify(j);
+        } catch {
+          // ignore
+        }
+        throw new Error(`Failed to save load: ${res.status} ${errText}`);
+      }
+
+      const data = await res.json();
+
+      info({ message: "Load created successfully" });
+      // Optionally include returned item
+      setLastCreated({ ...payload, ...data });
+
+      setAddOpen(false);
     } catch (err: any) {
-      console.error('Create Load failed', err);
-      setError(err?.message ?? 'Failed to create load');
+      console.error("Create Load failed", err);
+      setError(err?.message ?? "Failed to create load");
+      // If API call failed due to network or server, allow local fallback
+      // Uncomment next line if you'd like automatic local fallback:
+      // handleAddLoadLocal(payload);
     } finally {
       setAdding(false);
     }
@@ -286,8 +336,8 @@ const LoadBoard: React.FC = () => {
           idPrefix="loadboard"
           tabs={[
             {
-              id: 'all',
-              label: 'All Firm Loads',
+              id: "all",
+              label: "All Firm Loads",
               content: (
                 <AllFirmLoads
                   key={`all-firm-loads-${refreshToken}`}
@@ -296,8 +346,8 @@ const LoadBoard: React.FC = () => {
               ),
             },
             {
-              id: 'search',
-              label: 'Search Loads',
+              id: "search",
+              label: "Search Loads",
               content: (
                 <>
                   <PanelTitle>Search Loads</PanelTitle>
@@ -306,8 +356,8 @@ const LoadBoard: React.FC = () => {
               ),
             },
             {
-              id: 'my',
-              label: 'My Loads',
+              id: "my",
+              label: "My Loads",
               content: (
                 <>
                   <PanelTitle>My Loads</PanelTitle>
@@ -337,7 +387,15 @@ const LoadBoard: React.FC = () => {
                 <FormGrid>
                   <Field $full>
                     <FormLabel htmlFor="load_number">Load Number*</FormLabel>
-                    <TextInput id="load_number" name="load_number" value={form.load_number} readOnly aria-readonly="true" required maxLength={50} />
+                    <TextInput
+                      id="load_number"
+                      name="load_number"
+                      value={form.load_number}
+                      readOnly
+                      aria-readonly="true"
+                      required
+                      maxLength={50}
+                    />
                   </Field>
                   <Field>
                     <FormLabel htmlFor="pickup_date">Pickup Date*</FormLabel>
@@ -355,7 +413,11 @@ const LoadBoard: React.FC = () => {
                         inputMode="numeric"
                         ref={pickupDateInputRef}
                       />
-                      <CalendarBtn type="button" onClick={() => openDatePicker(pickupDateInputRef)} aria-label="Open date picker">
+                      <CalendarBtn
+                        type="button"
+                        onClick={() => openDatePicker(pickupDateInputRef)}
+                        aria-label="Open date picker"
+                      >
                         <Icon icon="mdi:calendar-month-outline" />
                       </CalendarBtn>
                     </DateFieldRow>
@@ -376,18 +438,36 @@ const LoadBoard: React.FC = () => {
                         inputMode="numeric"
                         ref={deliveryDateInputRef}
                       />
-                      <CalendarBtn type="button" onClick={() => openDatePicker(deliveryDateInputRef)} aria-label="Open date picker">
+                      <CalendarBtn
+                        type="button"
+                        onClick={() => openDatePicker(deliveryDateInputRef)}
+                        aria-label="Open date picker"
+                      >
                         <Icon icon="mdi:calendar-month-outline" />
                       </CalendarBtn>
                     </DateFieldRow>
                   </Field>
                   <Field>
                     <FormLabel htmlFor="origin">Origin*</FormLabel>
-                    <TextInput id="origin" name="origin" value={form.origin} onChange={onChange} required maxLength={120} />
+                    <TextInput
+                      id="origin"
+                      name="origin"
+                      value={form.origin}
+                      onChange={onChange}
+                      required
+                      maxLength={120}
+                    />
                   </Field>
                   <Field>
                     <FormLabel htmlFor="destination">Destination*</FormLabel>
-                    <TextInput id="destination" name="destination" value={form.destination} onChange={onChange} required maxLength={120} />
+                    <TextInput
+                      id="destination"
+                      name="destination"
+                      value={form.destination}
+                      onChange={onChange}
+                      required
+                      maxLength={120}
+                    />
                   </Field>
                   <Field>
                     <FormLabel htmlFor="trailer_type">Trailer Type</FormLabel>
@@ -410,15 +490,39 @@ const LoadBoard: React.FC = () => {
                   </Field>
                   <Field>
                     <FormLabel htmlFor="equipment_requirement">Equipment Requirement</FormLabel>
-                    <TextInput id="equipment_requirement" name="equipment_requirement" value={form.equipment_requirement} onChange={onChange} maxLength={120} />
+                    <TextInput
+                      id="equipment_requirement"
+                      name="equipment_requirement"
+                      value={form.equipment_requirement}
+                      onChange={onChange}
+                      maxLength={120}
+                    />
                   </Field>
                   <Field>
                     <FormLabel htmlFor="miles">Miles</FormLabel>
-                    <TextInput id="miles" name="miles" type="number" inputMode="numeric" min={0} step={1} value={form.miles} onChange={onChange} />
+                    <TextInput
+                      id="miles"
+                      name="miles"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={form.miles}
+                      onChange={onChange}
+                    />
                   </Field>
                   <Field>
                     <FormLabel htmlFor="rate">Rate</FormLabel>
-                    <TextInput id="rate" name="rate" type="number" inputMode="decimal" min={0} step={0.01} value={form.rate} onChange={onChange} />
+                    <TextInput
+                      id="rate"
+                      name="rate"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={0.01}
+                      value={form.rate}
+                      onChange={onChange}
+                    />
                   </Field>
                   <Field>
                     <FormLabel htmlFor="frequency">Frequency</FormLabel>
@@ -436,8 +540,12 @@ const LoadBoard: React.FC = () => {
                 </FormGrid>
                 {error && <ErrorText role="alert">{error}</ErrorText>}
                 <ModalFooter>
-                  <SecondaryBtn type="button" onClick={onCancel} disabled={adding}>Cancel</SecondaryBtn>
-                  <PrimaryBtn type="submit" disabled={adding}>{adding ? 'Saving…' : 'Save Load'}</PrimaryBtn>
+                  <SecondaryBtn type="button" onClick={onCancel} disabled={adding}>
+                    Cancel
+                  </SecondaryBtn>
+                  <PrimaryBtn type="submit" disabled={adding}>
+                    {adding ? "Saving…" : "Save Load"}
+                  </PrimaryBtn>
                 </ModalFooter>
               </form>
             </ModalCard>
