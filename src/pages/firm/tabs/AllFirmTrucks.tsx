@@ -4,23 +4,75 @@ import { Icon } from '@iconify-icon/react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../../amplify/data/resource';
 
+// Initialize the Amplify client
+const client = generateClient<Schema>();
+
+type TruckType = {
+  id?: string;
+  truck_number?: string;
+  available_date?: string;
+  origin?: string;
+  destination_preference?: string;
+  trailer_type?: string;
+  equipment?: string;
+  length_ft?: number | string;
+  weight_capacity?: number | string;
+  comment?: string;
+  created_at?: string;
+  __typename?: string;
+};
+
 type Props = {
   onAddNewTruck: () => void;
   refreshToken: number;
-  lastCreated?: any | null;
+  lastCreated?: TruckType | null;
+  trucks: TruckType[];
+  loading: boolean;
+  error: string | null;
 };
 
-const AllFirmTrucks: React.FC<Props> = ({ onAddNewTruck, refreshToken, lastCreated }) => {
-  const client = useMemo(() => generateClient<Schema>(), []);
-
-  // Search state
+const AllFirmTrucks: React.FC<Props> = ({
+  onAddNewTruck,
+  refreshToken,
+  lastCreated,
+  trucks: propTrucks,
+  loading: propLoading,
+  error: propError
+}) => {
+  // Local state
   const [searchText, setSearchText] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Data state
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [localTrucks, setLocalTrucks] = useState<TruckType[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Initialize or update local state when props change
+  useEffect(() => {
+    if (propTrucks && propTrucks.length > 0) {
+      setLocalTrucks(propTrucks);
+      setIsInitialized(true);
+    } else if (!isInitialized) {
+      setLocalTrucks([]);
+      setIsInitialized(true);
+    }
+  }, [propTrucks, isInitialized]);
+
+  // Set loading and error states from props
+  useEffect(() => {
+    setIsLoading(propLoading);
+    setError(propError);
+  }, [propLoading, propError]);
+
+  // Handle new truck created
+  useEffect(() => {
+    if (lastCreated) {
+      setLocalTrucks((prev: TruckType[]) => {
+        const exists = prev.some(t => t.id === lastCreated.id);
+        return exists ? prev : [lastCreated, ...prev];
+      });
+    }
+  }, [lastCreated]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(e.target.value);
@@ -33,7 +85,6 @@ const AllFirmTrucks: React.FC<Props> = ({ onAddNewTruck, refreshToken, lastCreat
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Wire up search server-side or filter client-side when data set is large
   };
 
   const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -58,10 +109,10 @@ const AllFirmTrucks: React.FC<Props> = ({ onAddNewTruck, refreshToken, lastCreat
 
   // Fetch trucks
   const fetchRows = async () => {
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     try {
-      const res = await client.models.Truck.list();
+      const res = await client.models.Truck.list(); // <-- make sure client is defined
       const raw = (res as any)?.data;
       const listCandidate = Array.isArray(raw)
         ? raw
@@ -71,46 +122,61 @@ const AllFirmTrucks: React.FC<Props> = ({ onAddNewTruck, refreshToken, lastCreat
         ? (res as any).items
         : [];
       const list = Array.isArray(listCandidate) ? listCandidate : [];
-      // Sort newest first using created_at, then available_date
       const parseDate = (x: any) => {
         const v = x?.created_at ?? x?.available_date;
         const d = v ? new Date(v) : null;
         return d && !isNaN(d.getTime()) ? d.getTime() : 0;
       };
       const sorted = [...list].sort((a, b) => parseDate(b) - parseDate(a));
-      // Merge optimistic lastCreated if not present
       const key = (x: any) => x?.id ?? `${x?.truck_number ?? ''}-${x?.created_at ?? ''}`;
       const merged = lastCreated
-        ? (sorted.some((r) => key(r) === key(lastCreated)) ? sorted : [lastCreated, ...sorted])
+        ? (sorted.some((r: any) => key(r) === key(lastCreated)) ? sorted : [lastCreated, ...sorted])
         : sorted;
-      setRows(merged);
+      setLocalTrucks(merged);
     } catch (e: any) {
       console.error('[AllFirmTrucks] list() error:', e);
       setError(e?.message ?? 'Failed to load data');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    // fetch initially and when refreshToken changes
     fetchRows();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshToken]);
 
-  // Optimistic update when parent provides lastCreated
+  // Optimistic update
   useEffect(() => {
     if (!lastCreated) return;
-    setRows((prev) => {
+    setLocalTrucks((prev: TruckType[]) => {
       const key = (x: any) => x?.id ?? `${x?.truck_number ?? ''}-${x?.created_at ?? ''}`;
       const lcKey = key(lastCreated);
       if (!lcKey) return prev;
-      if (prev.some((r) => key(r) === lcKey)) return prev;
+      if (prev.some((r: any) => key(r) === lcKey)) return prev;
       return [lastCreated, ...prev];
     });
   }, [lastCreated]);
 
-  const computeAge = (iso?: string, available?: string) => {
+  // Filter trucks
+  const filteredTrucks = useMemo(() => {
+    if (!searchText.trim()) return localTrucks;
+    const searchLower = searchText.toLowerCase();
+    return localTrucks.filter(
+      (truck: TruckType) =>
+        truck.truck_number?.toLowerCase().includes(searchLower) ||
+        truck.origin?.toLowerCase().includes(searchLower) ||
+        truck.destination_preference?.toLowerCase().includes(searchLower) ||
+        truck.trailer_type?.toLowerCase().includes(searchLower)
+    );
+  }, [localTrucks, searchText]);
+
+  const handleRefresh = () => {
+    setIsLoading(true);
+    setError(null);
+    onAddNewTruck();
+  };
+
+  const computeAge = (iso?: string, available?: string): string => {
     const base = iso || available;
     if (!base) return '';
     const d = new Date(base);
@@ -127,39 +193,31 @@ const AllFirmTrucks: React.FC<Props> = ({ onAddNewTruck, refreshToken, lastCreat
   return (
     <>
       <Toolbar>
-        <SearchForm onSubmit={handleSearchSubmit} role="search" aria-label="Search trucks">
+        <SearchForm onSubmit={handleSearchSubmit} role="search">
           <SearchInput
             ref={searchInputRef}
             type="text"
             placeholder="Search trucks by any field"
-            aria-label="Search trucks by any field"
             value={searchText}
             onChange={handleSearchChange}
             onKeyDown={onSearchKeyDown}
-            inputMode="search"
           />
           {searchText && (
-            <ClearBtn type="button" onClick={clearSearch} aria-label="Clear search">
+            <ClearBtn type="button" onClick={clearSearch}>
               <Icon icon="mdi:close" />
             </ClearBtn>
           )}
-          <SearchBtn type="submit" aria-label="Search">
+          <SearchBtn type="submit">
             <Icon icon="mdi:magnify" />
           </SearchBtn>
         </SearchForm>
 
         <RightActions>
-          <RefreshBtn
-            type="button"
-            onClick={fetchRows}
-            aria-label="Refresh table"
-            disabled={loading}
-            title="Refresh"
-          >
+          <RefreshBtn type="button" onClick={handleRefresh} disabled={isLoading}>
             <Icon icon="mdi:refresh" />
             <span>Refresh</span>
           </RefreshBtn>
-          <AddBtn type="button" onClick={onAddNewTruck} aria-label="Post a truck">
+          <AddBtn type="button" onClick={onAddNewTruck}>
             Post Truck
           </AddBtn>
         </RightActions>
@@ -182,55 +240,54 @@ const AllFirmTrucks: React.FC<Props> = ({ onAddNewTruck, refreshToken, lastCreat
             </tr>
           </thead>
           <tbody>
-            {loading && (
+            {isLoading ? (
               <tr>
                 <td colSpan={10}>Loading…</td>
               </tr>
-            )}
-            {error && !loading && (
+            ) : error ? (
               <tr>
                 <td colSpan={10} style={{ color: '#b00020' }}>{error}</td>
               </tr>
-            )}
-            {!loading && !error && rows.length === 0 && (
+            ) : filteredTrucks.length === 0 ? (
               <tr>
                 <td colSpan={10}>No trucks found.</td>
               </tr>
+            ) : (
+              filteredTrucks.map((truck: TruckType) => (
+                <tr key={truck.id ?? `${truck.truck_number}-${truck.created_at}`}>
+                  <td>{computeAge(truck.created_at, truck.available_date)}</td>
+                  <td>{truck.truck_number}</td>
+                  <td>{truck.available_date}</td>
+                  <td>{truck.origin}</td>
+                  <td>{truck.destination_preference}</td>
+                  <td>{truck.trailer_type}</td>
+                  <td>{truck.equipment}</td>
+                  <td>{typeof truck.length_ft === 'number' ? truck.length_ft : ''}</td>
+                  <td>{typeof truck.weight_capacity === 'number' ? truck.weight_capacity : ''}</td>
+                  <td>{truck.comment}</td>
+                </tr>
+              ))
             )}
-            {!loading && !error && rows.map((r: any) => (
-              <tr key={r.id ?? `${r.truck_number}-${r.created_at}`}>
-                <td>{computeAge(r.created_at, r.available_date)}</td>
-                <td>{r.truck_number}</td>
-                <td>{r.available_date}</td>
-                <td>{r.origin}</td>
-                <td>{r.destination_preference}</td>
-                <td>{r.trailer_type}</td>
-                <td>{r.equipment}</td>
-                <td>{typeof r.length_ft === 'number' ? r.length_ft : ''}</td>
-                <td>{typeof r.weight_capacity === 'number' ? r.weight_capacity : ''}</td>
-                <td>{r.comment}</td>
-              </tr>
-            ))}
           </tbody>
         </StyledTable>
 
         <PaginationRow>
           <RowsPerPage>
             <span>Rows per page:</span>
-            <RppSelect defaultValue={15} aria-label="Rows per page">
+            <RppSelect defaultValue={15}>
               <option value={15}>15</option>
               <option value={30}>30</option>
               <option value={50}>50</option>
             </RppSelect>
           </RowsPerPage>
           <PageInfo>
-            {rows.length > 0 ? `1-${rows.length} of ${rows.length}` : '0-0 of 0'}
+            {filteredTrucks.length > 0 ? `1-${filteredTrucks.length} of ${filteredTrucks.length}` : '0-0 of 0'}
           </PageInfo>
           <Pager>
-            <PageNavBtn aria-label="Previous page" disabled>
+            <PageNavBtn disabled>
               <Icon icon="mdi:chevron-left" />
             </PageNavBtn>
-            <PageNavBtn aria-label="Next page" disabled>
+            <PageNavBtn disabled>
               <Icon icon="mdi:chevron-right" />
             </PageNavBtn>
           </Pager>

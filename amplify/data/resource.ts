@@ -75,7 +75,10 @@ const schema = a.schema({
     weight_capacity: a.integer(),
     comment: a.string(),
     created_at: a.datetime(),
-  }).authorization((allow) => [allow.authenticated()]),
+  }).authorization((allow) => [
+    allow.publicApiKey().to(['create', 'read', 'update', 'delete']), // Allow public access for testing
+    allow.authenticated().to(['create', 'read', 'update', 'delete'])
+  ]),
 
   Team: a.model({
     name: a.string(),

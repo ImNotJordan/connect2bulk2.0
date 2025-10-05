@@ -56,7 +56,6 @@ const LoadBoard: React.FC = () => {
   // Add Load modal state
   const [isAddOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ ...defaultForm });
   const [loads, setLoads] = useState<Array<any>>([]);
@@ -115,7 +114,6 @@ const LoadBoard: React.FC = () => {
   // Fetch loads when component mounts
   const fetchLoads = async () => {
     try {
-      setLoading(true);
       console.log('Fetching loads from backend...');
       const result = await client.models.Load.list();
       console.log('Fetched loads:', result);
@@ -125,8 +123,6 @@ const LoadBoard: React.FC = () => {
     } catch (err) {
       console.error('Error fetching loads:', err);
       setError('Failed to load loads. Please refresh the page.');
-    } finally {
-      setLoading(false);
     }
   };
 

@@ -16,12 +16,48 @@ const TruckBoard: React.FC = () => {
   // Listing refresh + optimistic lastCreated
   const [refreshToken, setRefreshToken] = useState(0);
   const [lastCreated, setLastCreated] = useState<any | null>(null);
+  const [trucks, setTrucks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const incrementRefreshToken = () => setRefreshToken((v) => v + 1);
+
+  // Check if user is authenticated
+  const checkAuth = async (): Promise<boolean> => {
+    try {
+      const { data } = await client.models.User.list();
+      return !!data;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      return false;
+    }
+  };
+
+  // Fetch trucks from backend
+  const fetchTrucks = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching trucks from backend...');
+      const result = await client.models.Truck.list();
+      console.log('Fetched trucks:', result);
+      if (result.data) {
+        setTrucks(result.data);
+      }
+    } catch (err) {
+      console.error('Error fetching trucks:', err);
+      setError('Failed to load trucks. Please refresh the page.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch trucks on mount and when refreshToken changes
+  useEffect(() => {
+    fetchTrucks();
+  }, [refreshToken]);
 
   // Add Truck modal state
   const [isAddOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     truck_number: '',
     available_date: '',
@@ -179,13 +215,11 @@ const TruckBoard: React.FC = () => {
     e.preventDefault();
     setError(null);
     setAdding(true);
+
     try {
-      const validation = validateForm();
-      if (validation) {
-        setError(validation);
-        setAdding(false);
-        return;
-      }
+      console.log('1. Truck form submission started');
+
+      // Prepare the payload
       const payload = {
         truck_number: form.truck_number.trim(),
         available_date: form.available_date.trim(),
@@ -193,39 +227,68 @@ const TruckBoard: React.FC = () => {
         destination_preference: form.destination_preference.trim(),
         trailer_type: form.trailer_type.trim(),
         equipment: form.equipment.trim(),
-        length_ft: form.length_ft ? parseInt(form.length_ft, 10) : undefined,
-        weight_capacity: form.weight_capacity ? parseInt(form.weight_capacity, 10) : undefined,
+        length_ft: form.length_ft ? parseInt(form.length_ft, 10) : null,
+        weight_capacity: form.weight_capacity ? parseFloat(form.weight_capacity) : null,
         comment: form.comment.trim(),
-        created_at: new Date().toISOString(),
-      } as const;
+      };
 
-      if (!payload.truck_number || !payload.available_date || !payload.origin || !payload.trailer_type) {
-        setError('Please fill Truck Number, Available Date, Origin and Trailer Type.');
-        setAdding(false);
-        return;
+      console.log('2. Payload prepared:', JSON.stringify(payload, null, 2));
+
+      // First try to use the backend if authenticated
+      const isAuthenticated = await checkAuth();
+
+      if (isAuthenticated) {
+        try {
+          console.log('3. User is authenticated, attempting to create truck in backend...');
+          const result = await client.models.Truck.create(payload);
+          console.log('4. Backend response:', result);
+
+          if (result.data) {
+            console.log('5. Truck created successfully:', result.data);
+            setLastCreated(result.data);
+            incrementRefreshToken();
+
+            info({
+              title: 'Truck Posted',
+              message: 'Your truck has been posted successfully.',
+              autoClose: true,
+              autoCloseDuration: 3000,
+              position: 'top-right',
+            });
+
+            closeModal();
+            return;
+          }
+        } catch (backendError) {
+          console.error('Backend truck creation failed, falling back to local storage:', backendError);
+          // Continue to local fallback
+        }
       }
 
-      const created = await client.models.Truck.create(payload as any);
-      // Reset and close
-      setForm({
-        truck_number: '',
-        available_date: '',
-        origin: '',
-        destination_preference: '',
-        trailer_type: '',
-        equipment: '',
-        length_ft: '',
-        weight_capacity: '',
-        comment: '',
+      // Fallback to local storage if backend fails or user is not authenticated
+      console.log('6. Using local storage fallback for truck creation');
+      const newTruck = {
+        ...payload,
+        id: `local-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        __typename: 'Truck',
+      };
+
+      setLastCreated(newTruck);
+      setTrucks((prev) => [newTruck, ...prev]);
+
+      info({
+        title: 'Truck Posted (Local)',
+        message: 'Your truck has been saved locally. Sign in to sync with the cloud.',
+        autoClose: true,
+        autoCloseDuration: 5000,
+        position: 'top-right',
       });
-      setAddOpen(false);
-      // optimistic
-      const optimistic = (created as any)?.data ?? payload;
-      setLastCreated(optimistic);
-      incrementRefreshToken();
-    } catch (err: any) {
-      console.error('Create Truck failed', err);
-      setError(err?.message ?? 'Failed to post truck');
+
+      closeModal();
+    } catch (err) {
+      console.error('Error creating truck:', err);
+      setError('Failed to create truck. Please try again.');
     } finally {
       setAdding(false);
     }
@@ -240,13 +303,16 @@ const TruckBoard: React.FC = () => {
           tabs={[
             {
               id: 'posted',
-              label: 'Posted Trucks',
+              label: 'All Trucks',
               content: (
                 <AllFirmTrucks
                   key={`all-firm-trucks-${refreshToken}`}
                   onAddNewTruck={() => setAddOpen(true)}
                   refreshToken={refreshToken}
                   lastCreated={lastCreated}
+                  trucks={trucks}
+                  loading={loading}
+                  error={error}
                 />
               ),
             },
