@@ -33,86 +33,81 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
     return ''
   }
 
-  // Attempt to fetch a model with graceful auth fallback
+  // Simplified fetch with error handling
   const tryList = async <T,>(fn: () => Promise<{ data?: T; errors?: any }>): Promise<T | undefined> => {
     try {
       const res = await fn()
-      if ((res as any)?.errors?.length) return undefined
       return res.data
-    } catch (e: any) {
-      const msg = String(e?.message ?? e)
-      if (/Not Authorized|Unauthorized|Missing credentials/i.test(msg)) return undefined
+    } catch (e) {
+      console.debug('API call failed:', e)
       return undefined
     }
   }
 
+  // Load user and firm data
   useEffect(() => {
     let alive = true
-    ;(async () => {
+    
+    const loadData = async () => {
       try {
+        console.log('1. Fetching user attributes...')
         const attrs = await fetchUserAttributes()
         if (!alive) return
+        
         const first = (attrs.given_name || '').trim()
         const last = (attrs.family_name || '').trim()
-        const emailRaw = (attrs.email || '').trim()
-        const email = emailRaw.toLowerCase()
+        const email = (attrs.email || '').trim().toLowerCase()
+        
+        console.log('2. Setting basic user info:', { first, last, email })
         setUserName([first, last].filter(Boolean).join(' '))
-        setUserEmail(emailRaw)
+        setUserEmail(attrs.email || '')
 
-        // 1) Fetch role from User model by email
-        let roleVal: string = ''
-        const usersUL: any = await tryList(() => (client.models.User.list as any)({
-          filter: { email: { eq: email } },
-          limit: 1,
-          authMode: 'userPool',
-        }))
-        let userRow: any = (Array.isArray(usersUL) ? usersUL[0] : usersUL?.[0])
-        if (!userRow) {
-          const usersIL: any = await tryList(() => (client.models.User.list as any)({
+        // Only proceed if we have an email
+        if (!email) {
+          console.log('3. No email found, skipping role fetch')
+          return
+        }
+
+        console.log('4. Fetching user role...')
+        const users = await tryList(() => 
+          client.models.User.list({
             filter: { email: { eq: email } },
             limit: 1,
-            authMode: 'identityPool',
-          }))
-          userRow = (Array.isArray(usersIL) ? usersIL[0] : usersIL?.[0])
+            authMode: 'userPool'
+          } as any)
+        )
+        
+        console.log('5. User data from API:', users)
+        const userData = Array.isArray(users) ? users[0] : users?.[0]
+        if (userData?.role) {
+          const roleToDisplay = displayRole(userData.role)
+          console.log('6. Setting user role:', { originalRole: userData.role, displayRole: roleToDisplay })
+          setUserRole(roleToDisplay)
+        } else {
+          console.log('6. No role found in user data')
         }
-        if (userRow && userRow.role) roleVal = displayRole(userRow.role)
-        setUserRole(roleVal)
 
-        // 2) Fetch company from Firm model
-        const firmIdKey = 'c2b:myFirmId'
-        let firmData: any | null = null
-        let persistedId: string | null = null
-        try { persistedId = localStorage.getItem(firmIdKey) } catch {}
-        if (persistedId) {
-          const byIdUL: any = await tryList(() => (client.models.Firm.list as any)({
-            filter: { id: { eq: persistedId } }, limit: 1, authMode: 'userPool'
-          }))
-          firmData = (Array.isArray(byIdUL) ? byIdUL[0] : byIdUL?.[0])
-          if (!firmData) {
-            const byIdIL: any = await tryList(() => (client.models.Firm.list as any)({
-              filter: { id: { eq: persistedId } }, limit: 1, authMode: 'identityPool'
-            }))
-            firmData = (Array.isArray(byIdIL) ? byIdIL[0] : byIdIL?.[0])
+        // Try to get firm data
+        const firmId = localStorage.getItem('c2b:myFirmId')
+        if (firmId) {
+          const firmData = await tryList(() => 
+            client.models.Firm.list({
+              filter: { id: { eq: firmId } },
+              limit: 1
+            } as any)
+          )
+          const firm = Array.isArray(firmData) ? firmData[0] : firmData?.[0]
+          if (firm?.firm_name) {
+            setCompany(firm.firm_name.trim())
           }
         }
-        if (!firmData && email) {
-          const byEmailUL: any = await tryList(() => (client.models.Firm.list as any)({
-            filter: { administrator_email: { eq: email } }, limit: 1, authMode: 'userPool'
-          }))
-          firmData = (Array.isArray(byEmailUL) ? byEmailUL[0] : byEmailUL?.[0])
-          if (!firmData) {
-            const byEmailIL: any = await tryList(() => (client.models.Firm.list as any)({
-              filter: { administrator_email: { eq: emailRaw } }, limit: 1, authMode: 'identityPool'
-            }))
-            firmData = (Array.isArray(byEmailIL) ? byEmailIL[0] : byEmailIL?.[0])
-          }
-        }
-        const name = String((firmData as any)?.firm_name || '').trim()
-        setCompany(name)
-      } catch (e) {
-        // non-fatal
+      } catch (error) {
+        console.debug('Error loading user data:', error)
+        // Silently handle errors - user can still use the app
       }
-    })()
+    }
+
+    loadData()
     return () => { alive = false }
   }, [client])
 
@@ -137,20 +132,28 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
     setConfirmOpen(true)
   }
 
-  const navItems: Array<{
-    label: string
-    to: string
-    end?: boolean
-    icon: string
-  }> = [
-    { label: 'Dashboard', to: '/firm', end: true, icon: 'lucide:layout-dashboard' },
-    { label: 'Load Board', to: '/firm/load-board', icon: 'mdi:package-variant-closed' },
-    { label: 'Truck Board', to: '/firm/truck-board', icon: 'mdi:truck-outline' },
-    { label: 'Admin Console', to: '/firm/admin', icon: 'mdi:office-building-cog' },
-    { label: 'Search', to: '/firm/search', icon: 'mdi:magnify' },
-    { label: 'Notifications', to: '/firm/notifications', icon: 'mdi:bell-outline' },
-    { label: 'Profile', to: '/firm/profile', icon: 'mdi:account-circle-outline' },
-  ]
+  // Navigation items with all original links
+  const navItems = useMemo(() => {
+    const items = [
+      { label: 'Dashboard', to: '/firm', end: true, icon: 'lucide:layout-dashboard' },
+      { label: 'Load Board', to: '/firm/load-board', icon: 'mdi:package-variant-closed' },
+      { label: 'Truck Board', to: '/firm/truck-board', icon: 'mdi:truck-outline' },
+      { label: 'Search', to: '/firm/search', icon: 'mdi:magnify' },
+      { label: 'Notifications', to: '/firm/notifications', icon: 'mdi:bell-outline' },
+      { label: 'Profile', to: '/firm/profile', icon: 'mdi:account-circle-outline' },
+    ]
+
+    // Only show Admin Console for users with appropriate role
+    if (userRole === 'Super Manager' || userRole === 'Manager') {
+      items.splice(3, 0, { 
+        label: 'Admin Console', 
+        to: '/firm/admin', 
+        icon: 'mdi:office-building-cog' 
+      })
+    }
+
+    return items
+  }, [userRole])
 
   return (
     <>

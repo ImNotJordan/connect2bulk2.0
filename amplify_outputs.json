@@ -1,9 +1,9 @@
 {
   "auth": {
-    "user_pool_id": "us-east-1_Aw1Ku9PGU",
+    "user_pool_id": "us-east-1_sDYpYwHLH",
     "aws_region": "us-east-1",
-    "user_pool_client_id": "6kev433em8rmatk16chr1up9m",
-    "identity_pool_id": "us-east-1:8abb41a5-2bce-4e80-8b21-a9981bfb9ea4",
+    "user_pool_client_id": "1cdhg1ntb53s4f0busol7j8ish",
+    "identity_pool_id": "us-east-1:2f5681f6-b688-421b-8c98-927857dfdc7f",
     "mfa_methods": [],
     "standard_required_attributes": [
       "email"
@@ -26,11 +26,11 @@
     "unauthenticated_identities_enabled": true
   },
   "data": {
-    "url": "https://mgnbq7vzprhr5gnxpw2szxa7mi.appsync-api.us-east-1.amazonaws.com/graphql",
+    "url": "https://s4hm3q5ajzcg7auhtvruflflkm.appsync-api.us-east-1.amazonaws.com/graphql",
     "aws_region": "us-east-1",
-    "default_authorization_type": "AWS_IAM",
+    "default_authorization_type": "AMAZON_COGNITO_USER_POOLS",
     "authorization_types": [
-      "AMAZON_COGNITO_USER_POOLS"
+      "AWS_IAM"
     ],
     "model_introspection": {
       "version": 1,
@@ -244,8 +244,7 @@
               "properties": {
                 "rules": [
                   {
-                    "allow": "public",
-                    "provider": "iam",
+                    "allow": "private",
                     "operations": [
                       "create",
                       "update",
@@ -353,16 +352,6 @@
                       "delete",
                       "read"
                     ]
-                  },
-                  {
-                    "allow": "public",
-                    "provider": "iam",
-                    "operations": [
-                      "create",
-                      "update",
-                      "delete",
-                      "read"
-                    ]
                   }
                 ]
               }
@@ -388,14 +377,14 @@
               "name": "load_number",
               "isArray": false,
               "type": "String",
-              "isRequired": false,
+              "isRequired": true,
               "attributes": []
             },
             "pickup_date": {
               "name": "pickup_date",
               "isArray": false,
               "type": "String",
-              "isRequired": false,
+              "isRequired": true,
               "attributes": []
             },
             "delivery_date": {
@@ -409,14 +398,14 @@
               "name": "origin",
               "isArray": false,
               "type": "String",
-              "isRequired": false,
+              "isRequired": true,
               "attributes": []
             },
             "destination": {
               "name": "destination",
               "isArray": false,
               "type": "String",
-              "isRequired": false,
+              "isRequired": true,
               "attributes": []
             },
             "trailer_type": {
@@ -497,12 +486,21 @@
               "properties": {
                 "rules": [
                   {
-                    "allow": "public",
-                    "provider": "iam",
+                    "provider": "userPools",
+                    "ownerField": "owner",
+                    "allow": "owner",
+                    "identityClaim": "cognito:username",
                     "operations": [
                       "create",
                       "update",
                       "delete",
+                      "read"
+                    ]
+                  },
+                  {
+                    "allow": "private",
+                    "operations": [
+                      "create",
                       "read"
                     ]
                   }
@@ -625,8 +623,7 @@
               "properties": {
                 "rules": [
                   {
-                    "allow": "public",
-                    "provider": "iam",
+                    "allow": "private",
                     "operations": [
                       "create",
                       "update",
@@ -733,16 +730,6 @@
                 "rules": [
                   {
                     "allow": "private",
-                    "operations": [
-                      "create",
-                      "update",
-                      "delete",
-                      "read"
-                    ]
-                  },
-                  {
-                    "allow": "public",
-                    "provider": "iam",
                     "operations": [
                       "create",
                       "update",

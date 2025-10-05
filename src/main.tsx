@@ -7,15 +7,34 @@ import { Amplify } from 'aws-amplify'
 import outputs from '../amplify_outputs.json'
 import { AlertProvider } from './components/AlertProvider'
 
-// Configure Amplify synchronously to ensure it's ready before any component code runs
-Amplify.configure(outputs as any)
+// Configure Amplify with detailed logging
+try {
+  console.log('Configuring Amplify...');
+  Amplify.configure({
+    ...outputs,
+    // Add any additional Amplify configuration here
+  });
+  console.log('Amplify configured successfully');
+} catch (error) {
+  console.error('Error configuring Amplify:', error);
+}
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <AlertProvider>
-        <App />
-      </AlertProvider>
-    </BrowserRouter>
-  </StrictMode>,
-)
+// Create a function to render the app
+function renderApp() {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <BrowserRouter>
+        <AlertProvider>
+          <App />
+        </AlertProvider>
+      </BrowserRouter>
+    </StrictMode>
+  );
+}
+
+// Ensure the DOM is loaded before rendering
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', renderApp);
+} else {
+  renderApp();
+}

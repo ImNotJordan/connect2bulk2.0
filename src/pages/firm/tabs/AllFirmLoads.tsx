@@ -3,37 +3,89 @@ import styled from 'styled-components';
 import { Icon } from '@iconify-icon/react';
 import { useLoadContext } from '../../../context/LoadContext';
 
-type Props = { onAddNewLoad: () => void; };
+type Props = { 
+  loads?: any[];
+  onAddNewLoad: () => void; 
+};
 
-const AllFirmLoads: React.FC<Props> = ({ onAddNewLoad }) => {
+const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad }) => {
   // Search state
   const [searchText, setSearchText] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Data state
-  const { loadData: rows, setLoadData: setRows, lastCreated } = useLoadContext();
+  const { loadData: contextRows, setLoadData: setContextRows, lastCreated } = useLoadContext();
   const [error] = useState<string | null>(null);
   const [localRows, setLocalRows] = useState<any[]>([]);
   const loading = false; // Loading state not needed for local data
 
-  // Initialize with empty array
+  // Initialize with props or context data
   useEffect(() => {
-    if (rows) {
-      setLocalRows(rows);
-    } else {
-      setRows?.([]);
-      setLocalRows([]);
-    }
-  }, [rows, setRows]);
+    let mounted = true;
+    
+    const initializeData = () => {
+      if (!mounted) return;
+      
+      if (loads && loads.length > 0) {
+        // Use the loads from props if available
+        setLocalRows(prev => {
+          // Only update if the loads are different from current state
+          if (JSON.stringify(prev) !== JSON.stringify(loads)) {
+            return [...loads];
+          }
+          return prev;
+        });
+        
+        // Only update context if it's different
+        if (JSON.stringify(contextRows) !== JSON.stringify(loads)) {
+          setContextRows?.(loads);
+        }
+      } else if (contextRows && contextRows.length > 0) {
+        // Fall back to context data
+        setLocalRows(prev => {
+          if (JSON.stringify(prev) !== JSON.stringify(contextRows)) {
+            return [...contextRows];
+          }
+          return prev;
+        });
+      } else if (localRows.length === 0) {
+        // Only initialize with empty array if we don't have any data
+        setContextRows?.([]);
+      }
+    };
+
+    initializeData();
+    
+    return () => {
+      mounted = false;
+    };
+  }, [loads, contextRows, setContextRows]);
 
   // Handle new loads added via context
   useEffect(() => {
-    if (lastCreated && !localRows.some(l => l.id === lastCreated.id)) {
-      const updatedRows = [lastCreated, ...localRows];
-      setLocalRows(updatedRows);
-      setRows?.(updatedRows);
+    if (!lastCreated) return;
+    
+    setLocalRows(prev => {
+      if (!prev.some(l => l.id === lastCreated.id)) {
+        return [lastCreated, ...prev];
+      }
+      return prev;
+    });
+  }, [lastCreated]);
+  
+  // Sync with props.loads when it changes
+  useEffect(() => {
+    if (loads && loads.length > 0) {
+      setLocalRows(prev => {
+        if (JSON.stringify(prev) !== JSON.stringify(loads)) {
+          return [...loads];
+        }
+        return prev;
+      });
     }
-  }, [lastCreated, localRows, setRows]);
+  }, [loads]);
+
+  // Filter rows based on search text (using the existing filteredRows implementation)
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(e.target.value);
@@ -183,7 +235,7 @@ const AllFirmLoads: React.FC<Props> = ({ onAddNewLoad }) => {
                 <td colSpan={12} style={{ color: '#b00020' }}>{error}</td>
               </tr>
             )}
-            {!loading && !error && rows.length === 0 && (
+            {!loading && !error && localRows.length === 0 && (
               <tr>
                 <td colSpan={12}>No loads found.</td>
               </tr>
@@ -217,7 +269,7 @@ const AllFirmLoads: React.FC<Props> = ({ onAddNewLoad }) => {
             </RppSelect>
           </RowsPerPage>
           <PageInfo>
-            {rows.length > 0 ? `1-${rows.length} of ${rows.length}` : '0-0 of 0'}
+            {localRows.length > 0 ? `1-${localRows.length} of ${localRows.length}` : '0-0 of 0'}
           </PageInfo>
           <Pager>
             <PageNavBtn aria-label="Previous page" disabled>

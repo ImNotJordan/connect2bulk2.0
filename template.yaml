@@ -9,38 +9,4 @@ Globals:
     MemorySize: 256
 
 Resources:
-  LoadsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Loads
-      AttributeDefinitions:
-        - AttributeName: load_number
-          AttributeType: S
-      KeySchema:
-        - AttributeName: load_number
-          KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
-
-  LoadsFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: LoadsFunction
-      Handler: index.handler
-      CodeUri: lambda/
-      Environment:
-        Variables:
-          LOADS_TABLE: !Ref LoadsTable
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref LoadsTable
-      Events:
-        CreateLoad:
-          Type: HttpApi
-          Properties:
-            Path: /loads
-            Method: POST
-
-Outputs:
-  ApiUrl:
-    Description: "HTTP API endpoint"
-    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  # Backend resources have been removed as requested

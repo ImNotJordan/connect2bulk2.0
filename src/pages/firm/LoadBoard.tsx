@@ -6,8 +6,12 @@ import { useAlert } from '../../components/AlertProvider';
 import AllFirmLoads from './tabs/AllFirmLoads';
 import { TRAILER_TYPES } from './constants';
 import { useLoadContext } from '../../context/LoadContext';
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from "../../../amplify/data/resource";
 
 
+
+const client = generateClient<Schema>();
 
 const TRAILER_TYPES_SET = new Set(TRAILER_TYPES.map((t) => toAllCaps(t)));
 
@@ -43,7 +47,7 @@ const defaultForm: FormState = {
   comment: "",
 };
 
-const API_URL = import.meta.env.VITE_API_URL || "https://jk60keozsc.execute-api.us-east-1.amazonaws.com/prod";
+// Backend integration removed - using local state instead
 
 const LoadBoard: React.FC = () => {
   const { info, warning } = useAlert();
@@ -52,8 +56,10 @@ const LoadBoard: React.FC = () => {
   // Add Load modal state
   const [isAddOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ ...defaultForm });
+  const [loads, setLoads] = useState<Array<any>>([]);
 
   // Refs for date inputs and handlers to open native calendar
   const pickupDateInputRef = useRef<HTMLInputElement | null>(null);
@@ -106,12 +112,32 @@ const LoadBoard: React.FC = () => {
     setForm({ ...defaultForm });
   };
 
-  // Initialize form with a random load number when modal opens
+  // Fetch loads when component mounts
+  const fetchLoads = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching loads from backend...');
+      const result = await client.models.Load.list();
+      console.log('Fetched loads:', result);
+      if (result.data) {
+        setLoads(result.data);
+      }
+    } catch (err) {
+      console.error('Error fetching loads:', err);
+      setError('Failed to load loads. Please refresh the page.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initialize form with a random load number when modal opens and fetch loads on mount
   useEffect(() => {
     if (isAddOpen) {
       setForm((prev) => ({ ...prev, load_number: generateLoadNumber() }));
+    } else {
+      fetchLoads();
     }
-  }, [isAddOpen]);
+  }, [isAddOpen, refreshToken]); // Add refreshToken to dependency array to refetch when it changes
 
   const onCancel = () => {
     if (adding) return;
@@ -232,8 +258,7 @@ const LoadBoard: React.FC = () => {
     return errors.length ? errors.join(" ") : null;
   };
 
-  const handleAddLoadLocal = (loadData: any) => {
-    // keep local-only fallback behavior: mark local id, setLastCreated, toast
+  function handleAddLoadLocal(loadData: any) {
     const newLoad = {
       ...loadData,
       id: `local-${Date.now()}`,
@@ -241,89 +266,132 @@ const LoadBoard: React.FC = () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-
+  
     console.debug("[LoadBoard] Creating local load:", newLoad);
     info({ message: "Load created successfully (local only)" });
     setLastCreated(newLoad);
     setAddOpen(false);
+  }
+
+  const checkAuth = async () => {
+    try {
+      const { data } = await client.models.Load.list(); // Simple query to check auth
+      return true;
+    } catch (err) {
+      console.error('Auth check failed:', err);
+      return false;
+    }
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('1. Form submission started');
     setError(null);
     setAdding(true);
+    
+    // Ensure we have the latest loads before adding a new one
+    await fetchLoads();
 
     try {
+      console.log('2. Validating form');
       const validation = validateForm();
       if (validation) {
+        console.log('3. Validation failed:', validation);
         setError(validation);
         setAdding(false);
         return;
       }
+      console.log('3. Form validation passed');
 
       const payload: any = {
         load_number: form.load_number.trim(),
         pickup_date: form.pickup_date.trim(),
-        delivery_date: form.delivery_date.trim(),
+        delivery_date: form.delivery_date.trim() || null,
         origin: form.origin.trim(),
         destination: form.destination.trim(),
         trailer_type: form.trailer_type.trim(),
         equipment_requirement: form.equipment_requirement.trim(),
-        miles: form.miles ? parseInt(form.miles, 10) : undefined,
-        rate: form.rate ? parseFloat(form.rate) : undefined,
+        miles: form.miles ? parseInt(form.miles, 10) : null,
+        rate: form.rate ? parseFloat(form.rate) : null,
         frequency: form.frequency,
         comment: form.comment.trim(),
-        status: "AVAILABLE",
+        created_at: new Date().toISOString(),
       };
+      console.log('4. Payload prepared:', JSON.stringify(payload, null, 2));
 
-      // Basic required fields check
       if (!payload.load_number || !payload.pickup_date || !payload.origin || !payload.destination) {
-        setError("Please fill Load Number, Pickup Date, Origin and Destination.");
+        const errorMsg = 'Missing required fields';
+        console.log('5. Required fields check failed:', {
+          load_number: !!payload.load_number,
+          pickup_date: !!payload.pickup_date,
+          origin: !!payload.origin,
+          destination: !!payload.destination
+        });
+        setError(errorMsg);
         setAdding(false);
         return;
       }
+      console.log('5. Required fields check passed');
 
-      // If API URL is not configured, fallback to local
-      if (!API_URL) {
-        console.warn("VITE_API_URL not configured — falling back to local-only creation.");
-        handleAddLoadLocal(payload);
-        return;
-      }
-
-      const res = await fetch(`${API_URL}/loads`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        // try to read body
-        let errText = res.statusText;
+      // First try to use the backend if authenticated
+      const isAuthenticated = await checkAuth();
+      
+      if (isAuthenticated) {
         try {
-          const j = await res.json();
-          errText = j?.error || j?.message || JSON.stringify(j);
-        } catch {
-          // ignore
+          console.log('6. User is authenticated, attempting to create load in backend...');
+          const result = await client.models.Load.create({
+            load_number: payload.load_number,
+            pickup_date: payload.pickup_date,
+            delivery_date: payload.delivery_date,
+            origin: payload.origin,
+            destination: payload.destination,
+            trailer_type: payload.trailer_type,
+            equipment_requirement: payload.equipment_requirement,
+            miles: payload.miles,
+            rate: payload.rate,
+            frequency: payload.frequency,
+            comment: payload.comment,
+            created_at: payload.created_at,
+          });
+          console.log('7. Backend response:', result);
+
+          if (result.data) {
+            console.log('8. Load created successfully:', result.data);
+            info({ message: "Load created successfully in backend" });
+            setLastCreated(result.data);
+            setForm({ ...defaultForm });
+            setAddOpen(false);
+            setAdding(false);
+            return;
+          } else if (result.errors) {
+            throw new Error(result.errors[0]?.message || 'Failed to create load');
+          }
+        } catch (err: any) {
+          console.error('8. Error creating load in backend:', {
+            error: err,
+            message: err.message,
+            stack: err.stack
+          });
+          // Continue to fallback to local storage
         }
-        throw new Error(`Failed to save load: ${res.status} ${errText}`);
+      } else {
+        console.log('6. User is not authenticated, falling back to local storage');
       }
-
-      const data = await res.json();
-
-      info({ message: "Load created successfully" });
-      // Optionally include returned item
-      setLastCreated({ ...payload, ...data });
-
+      
+      // Fallback to local storage if backend fails or user is not authenticated
+      console.log('9. Using local storage as fallback');
+      handleAddLoadLocal(payload);
+      setForm({ ...defaultForm });
       setAddOpen(false);
     } catch (err: any) {
-      console.error("Create Load failed", err);
+      console.error('Unexpected error in handleCreate:', {
+        error: err,
+        message: err.message,
+        stack: err.stack
+      });
       setError(err?.message ?? "Failed to create load");
-      // If API call failed due to network or server, allow local fallback
-      // Uncomment next line if you'd like automatic local fallback:
-      // handleAddLoadLocal(payload);
     } finally {
+      console.log('Final state - setting adding to false');
       setAdding(false);
     }
   };
@@ -340,6 +408,7 @@ const LoadBoard: React.FC = () => {
               label: "All Firm Loads",
               content: (
                 <AllFirmLoads
+                  loads={loads}
                   key={`all-firm-loads-${refreshToken}`}
                   onAddNewLoad={() => setAddOpen(true)}
                 />
