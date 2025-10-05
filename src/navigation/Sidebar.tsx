@@ -18,18 +18,18 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
 
   const [userName, setUserName] = useState<string>('')
   const [userEmail, setUserEmail] = useState<string>('')
-  const [userRole, setUserRole] = useState<string>('')
+  const [userRole, setUserRole] = useState<string>('')        // normalized role for logic
+  const [originalRole, setOriginalRole] = useState<string>('') // raw role for display
   const [company, setCompany] = useState<string>('')
 
-  // Map stored role codes or legacy strings to display labels
+  // Map stored role codes or legacy strings to display labels (used for nav logic)
   const displayRole = (r: any): string => {
     const v = String(r ?? '').toUpperCase()
-    if (v === 'SUPER_MANAGER') return 'Super Manager'
-    if (v === 'MANAGER') return 'Manager'
+    if (v === 'SUPERADMIN') return 'SuperAdmin'
     if (v === 'MEMBER') return 'Member'
-    if (r === 'Admin') return 'Super Manager'
+    if (r === 'Admin') return 'SuperAdmin'
     if (r === 'Regular') return 'Member'
-    if (r === 'Super Manager' || r === 'Manager' || r === 'Member') return String(r)
+    if (r === 'SuperAdmin' || r === 'Member') return String(r)
     return ''
   }
 
@@ -62,7 +62,6 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         setUserName([first, last].filter(Boolean).join(' '))
         setUserEmail(attrs.email || '')
 
-        // Only proceed if we have an email
         if (!email) {
           console.log('3. No email found, skipping role fetch')
           return
@@ -82,7 +81,8 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         if (userData?.role) {
           const roleToDisplay = displayRole(userData.role)
           console.log('6. Setting user role:', { originalRole: userData.role, displayRole: roleToDisplay })
-          setUserRole(roleToDisplay)
+          setOriginalRole(userData.role) // show in UI
+          setUserRole(roleToDisplay)     // use for nav logic
         } else {
           console.log('6. No role found in user data')
         }
@@ -103,7 +103,6 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         }
       } catch (error) {
         console.debug('Error loading user data:', error)
-        // Silently handle errors - user can still use the app
       }
     }
 
@@ -112,27 +111,23 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   }, [client])
 
   const handleSignOut = async () => {
-    // Close dialog and sidebar on confirm, then sign out
     setConfirmOpen(false)
     setOpen(false)
     try {
-      // Global sign-out revokes the refresh token remotely and clears local session
       await signOut({ global: true })
       navigate('/login', { replace: true })
     } catch (e) {
       console.error('Sign out failed:', e)
-      // Navigate to login anyway to avoid trapping the user in a broken state
       navigate('/login', { replace: true })
     }
   }
 
   const onRequestSignOut = () => {
-    // Open confirmation dialog; close sidebar on mobile to declutter
     setOpen(false)
     setConfirmOpen(true)
   }
 
-  // Navigation items with all original links
+  // Navigation items
   const navItems = useMemo(() => {
     const items = [
       { label: 'Dashboard', to: '/firm', end: true, icon: 'lucide:layout-dashboard' },
@@ -140,17 +135,9 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
       { label: 'Truck Board', to: '/firm/truck-board', icon: 'mdi:truck-outline' },
       { label: 'Search', to: '/firm/search', icon: 'mdi:magnify' },
       { label: 'Notifications', to: '/firm/notifications', icon: 'mdi:bell-outline' },
+      { label: 'Admin', to: '/firm/admin', icon: 'mdi:shield-account' },
       { label: 'Profile', to: '/firm/profile', icon: 'mdi:account-circle-outline' },
     ]
-
-    // Only show Admin Console for users with appropriate role
-    if (userRole === 'Super Manager' || userRole === 'Manager') {
-      items.splice(3, 0, { 
-        label: 'Admin Console', 
-        to: '/firm/admin', 
-        icon: 'mdi:office-building-cog' 
-      })
-    }
 
     return items
   }, [userRole])
@@ -191,7 +178,6 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             ×
           </CloseBtn>
         </Header>
-        {/* Collapse tab moved to a portal to avoid any stacking/overflow clipping */}
 
         <NavList>
           {navItems.map((item) => (
@@ -217,8 +203,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             <UserInfo>
               <UserName $collapsed={collapsed}>{userName || userEmail || '—'}</UserName>
               <UserMeta>
-                {userRole ? (<BadgeRole>{userRole}</BadgeRole>) : null}
-                {company ? (<CompanyLine title={company} $collapsed={collapsed}>{company}</CompanyLine>) : null}
+                {originalRole ? (<BadgeRole>{originalRole}</BadgeRole>) : null}
               </UserMeta>
             </UserInfo>
           </UserCard>

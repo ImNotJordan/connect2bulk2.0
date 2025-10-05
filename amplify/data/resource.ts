@@ -47,6 +47,7 @@ const schema = a.schema({
   }).authorization((allow) => [allow.authenticated()]),
 
   Load: a.model({
+    id: a.id().required(),
     load_number: a.string().required(),
     pickup_date: a.string().required(),
     delivery_date: a.string(),
@@ -65,6 +66,7 @@ const schema = a.schema({
   ]),
 
   Truck: a.model({
+    id: a.id().required(),
     truck_number: a.string(),
     available_date: a.string(),
     origin: a.string(),
