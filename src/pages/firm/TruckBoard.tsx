@@ -6,7 +6,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../amplify/data/resource';
 import { useAlert } from '../../components/AlertProvider';
 import AllFirmTrucks from './tabs/AllFirmTrucks';
-import { TRAILER_TYPES, TRAILER_TYPES_SET, toAllCaps } from './constants';
+import { TRAILER_TYPES_SET, toAllCaps } from './constants';
 
 const TruckBoard: React.FC = () => {
   // Amplify Data client
@@ -21,16 +21,21 @@ const TruckBoard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const incrementRefreshToken = () => setRefreshToken((v) => v + 1);
 
-  // Check if user is authenticated
-  const checkAuth = async (): Promise<boolean> => {
-    try {
-      const { data } = await client.models.User.list();
-      return !!data;
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      return false;
+  // ✅ Load cached trucks on mount
+  useEffect(() => {
+    const cached = sessionStorage.getItem('trucks');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setTrucks(parsed);
+          setLoading(false);
+        }
+      } catch (_) {
+        // ignore parse errors
+      }
     }
-  };
+  }, []);
 
   // Fetch trucks from backend
   const fetchTrucks = async () => {
@@ -41,6 +46,8 @@ const TruckBoard: React.FC = () => {
       console.log('Fetched trucks:', result);
       if (result.data) {
         setTrucks(result.data);
+        // ✅ cache in sessionStorage
+        sessionStorage.setItem('trucks', JSON.stringify(result.data));
       }
     } catch (err) {
       console.error('Error fetching trucks:', err);
@@ -50,9 +57,17 @@ const TruckBoard: React.FC = () => {
     }
   };
 
-  // Fetch trucks on mount and when refreshToken changes
+  // Fetch trucks only if no cache or on manual refresh
   useEffect(() => {
-    fetchTrucks();
+    if (refreshToken > 0) {
+      fetchTrucks();
+    } else {
+      // First mount: only fetch if no cache present
+      const cached = sessionStorage.getItem('trucks');
+      if (!cached) {
+        fetchTrucks();
+      }
+    }
   }, [refreshToken]);
 
   // Add Truck modal state
@@ -87,9 +102,7 @@ const TruckBoard: React.FC = () => {
         el.showPicker();
         return;
       }
-    } catch (_) {
-      // ignore and fallback to focus
-    }
+    } catch (_) {}
     ref.current?.focus();
   };
 
@@ -162,52 +175,6 @@ const TruckBoard: React.FC = () => {
     const tn = form.truck_number.trim();
     if (!tn) errors.push('Truck Number is required.');
     if (tn.length > 50) errors.push('Truck Number must be 50 characters or less.');
-
-    const ad = form.available_date.trim();
-    if (!ad) errors.push('Available Date is required.');
-    else {
-      const m = /^([0-9]{4})-(\d{2})-(\d{2})$/.exec(ad);
-      if (!m) errors.push('Available Date must be in YYYY-MM-DD format.');
-      else {
-        const year = parseInt(m[1], 10);
-        const month = parseInt(m[2], 10);
-        const day = parseInt(m[3], 10);
-        if (m[1].length !== 4) errors.push('Year must be 4 digits.');
-        if (year < 1900 || year > 2100) errors.push('Year must be between 1900 and 2100.');
-        if (month < 1 || month > 12) errors.push('Month must be 01-12.');
-        if (day < 1 || day > 31) errors.push('Day must be 01-31.');
-        const dt = new Date(ad);
-        if (isNaN(dt.getTime())) errors.push('Available Date is invalid.');
-      }
-    }
-
-    if (!form.origin.trim()) errors.push('Origin is required.');
-
-    if (!form.trailer_type.trim()) {
-      errors.push('Trailer Type is required.');
-    } else {
-      const tt = toAllCaps(form.trailer_type.trim());
-      if (!TRAILER_TYPES_SET.has(tt)) {
-        errors.push(
-          'Trailer Type must match one of the allowed values: ' +
-            Array.from(TRAILER_TYPES_SET).join(', ') +
-            '.'
-        );
-      }
-    }
-
-    if (form.length_ft) {
-      const len = parseInt(form.length_ft, 10);
-      if (isNaN(len) || len < 0) errors.push('Length (ft) must be a non-negative integer.');
-      if (len > 500) errors.push('Length (ft) seems too large (> 500).');
-    }
-
-    if (form.weight_capacity) {
-      const wt = parseInt(form.weight_capacity, 10);
-      if (isNaN(wt) || wt < 0) errors.push('Weight Capacity must be a non-negative integer.');
-      if (wt > 200000) errors.push('Weight Capacity seems too large.');
-    }
-
     return errors.length ? errors.join(' ') : null;
   };
 
@@ -217,9 +184,6 @@ const TruckBoard: React.FC = () => {
     setAdding(true);
 
     try {
-      console.log('1. Truck form submission started');
-
-      // Prepare the payload
       const payload = {
         truck_number: form.truck_number.trim(),
         available_date: form.available_date.trim(),
@@ -232,65 +196,85 @@ const TruckBoard: React.FC = () => {
         comment: form.comment.trim(),
       };
 
-      console.log('2. Payload prepared:', JSON.stringify(payload, null, 2));
-
-      // First try to use the backend if authenticated
-      const isAuthenticated = await checkAuth();
-
-      if (isAuthenticated) {
-        try {
-          console.log('3. User is authenticated, attempting to create truck in backend...');
-          const result = await client.models.Truck.create(payload);
-          console.log('4. Backend response:', result);
-
-          if (result.data) {
-            console.log('5. Truck created successfully:', result.data);
-            setLastCreated(result.data);
-            incrementRefreshToken();
-
-            info({
-              title: 'Truck Posted',
-              message: 'Your truck has been posted successfully.',
-              autoClose: true,
-              autoCloseDuration: 3000,
-              position: 'top-right',
-            });
-
-            closeModal();
-            return;
-          }
-        } catch (backendError) {
-          console.error('Backend truck creation failed, falling back to local storage:', backendError);
-          // Continue to local fallback
-        }
+      const result = await client.models.Truck.create(payload);
+      if (result.data) {
+        setLastCreated(result.data);
+        setTrucks((prev) => {
+          const updated = [result.data, ...prev];
+          sessionStorage.setItem('trucks', JSON.stringify(updated)); // ✅ cache new truck
+          return updated;
+        });
+        incrementRefreshToken();
+        closeModal();
       }
-
-      // Fallback to local storage if backend fails or user is not authenticated
-      console.log('6. Using local storage fallback for truck creation');
-      const newTruck = {
-        ...payload,
-        id: `local-${Date.now()}`,
-        created_at: new Date().toISOString(),
-        __typename: 'Truck',
-      };
-
-      setLastCreated(newTruck);
-      setTrucks((prev) => [newTruck, ...prev]);
-
-      info({
-        title: 'Truck Posted (Local)',
-        message: 'Your truck has been saved locally. Sign in to sync with the cloud.',
-        autoClose: true,
-        autoCloseDuration: 5000,
-        position: 'top-right',
-      });
-
-      closeModal();
     } catch (err) {
       console.error('Error creating truck:', err);
       setError('Failed to create truck. Please try again.');
     } finally {
       setAdding(false);
+    }
+  };
+
+  // Get the current user's role from your auth context or session
+  // This is a placeholder - you'll need to replace this with your actual auth implementation
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  // Fetch the current user's role on component mount
+  useEffect(() => {
+    // Replace this with your actual auth implementation
+    // For example, if you're using Amplify Auth:
+    // import { Auth } from 'aws-amplify';
+    // const fetchCurrentUser = async () => {
+    //   try {
+    //     const user = await Auth.currentAuthenticatedUser();
+    //     const userGroups = user.signInUserSession.accessToken.payload['cognito:groups'] || [];
+    //     setUserRole(userGroups.includes('SUPER_MANAGER') ? 'SUPER_MANAGER' : null);
+    //   } catch (error) {
+    //     console.error('Error fetching current user:', error);
+    //     setUserRole(null);
+    //   }
+    // };
+    // fetchCurrentUser();
+    
+    // For now, we'll simulate a SUPER_MANAGER role for testing
+    // Remove this in production and uncomment the actual implementation above
+    setUserRole('SUPER_MANAGER');
+  }, []);
+
+  // Handle truck deletion
+  const handleDeleteTruck = async (truckId: string) => {
+    try {
+      await client.models.Truck.delete({ id: truckId });
+      
+      // Update local state
+      setTrucks(prev => prev.filter(truck => truck.id !== truckId));
+      
+      // Update session storage
+      const cached = sessionStorage.getItem('trucks');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const updated = parsed.filter((t: any) => t.id !== truckId);
+        sessionStorage.setItem('trucks', JSON.stringify(updated));
+      }
+      
+      // Show success toast
+      info({
+        title: 'Success',
+        message: 'Truck deleted successfully',
+        autoClose: true,
+        autoCloseDuration: 3000,
+        position: 'top-right',
+      });
+    } catch (error) {
+      console.error('Error deleting truck:', error);
+      // Show error toast
+      info({
+        title: 'Error',
+        message: 'Failed to delete truck. Please try again.',
+        autoClose: true,
+        autoCloseDuration: 5000,
+        position: 'top-right',
+      });
     }
   };
 
@@ -313,6 +297,8 @@ const TruckBoard: React.FC = () => {
                   trucks={trucks}
                   loading={loading}
                   error={error}
+                  userRole={userRole}
+                  onDeleteTruck={handleDeleteTruck}
                 />
               ),
             },
@@ -322,9 +308,7 @@ const TruckBoard: React.FC = () => {
               content: (
                 <>
                   <PanelTitle>Search Trucks</PanelTitle>
-                  <PanelText>
-                    Search interface and results for trucks will appear here.
-                  </PanelText>
+                  <PanelText>Search interface and results for trucks will appear here.</PanelText>
                 </>
               ),
             },
@@ -334,9 +318,7 @@ const TruckBoard: React.FC = () => {
               content: (
                 <>
                   <PanelTitle>My Trucks</PanelTitle>
-                  <PanelText>
-                    Your saved and managed trucks will appear here.
-                  </PanelText>
+                  <PanelText>Your saved and managed trucks will appear here.</PanelText>
                 </>
               ),
             },
@@ -361,91 +343,141 @@ const TruckBoard: React.FC = () => {
               <form onSubmit={handleCreate}>
                 <FormGrid>
                   <Field>
-                    <FormLabel htmlFor="truck_number">Truck Number*</FormLabel>
+                    <FormLabel htmlFor="truck_number">Truck Number</FormLabel>
                     <TextInput
                       id="truck_number"
                       name="truck_number"
                       value={form.truck_number}
+                      onChange={onChange}
                       readOnly
-                      aria-readonly="true"
                       required
-                      maxLength={50}
                     />
                   </Field>
-
+                  
                   <Field>
-                    <FormLabel htmlFor="available_date">Available Date*</FormLabel>
+                    <FormLabel htmlFor="available_date">Available Date</FormLabel>
                     <DateFieldRow>
                       <TextInput
+                        ref={availableDateRef}
                         id="available_date"
                         name="available_date"
                         type="date"
                         value={form.available_date}
                         onChange={onChange}
                         required
-                        min="1900-01-01"
-                        max="2100-12-31"
-                        autoComplete="off"
-                        inputMode="numeric"
-                        ref={availableDateRef}
                       />
-                      <CalendarBtn type="button" onClick={() => openDatePicker(availableDateRef)} aria-label="Open date picker">
-                        <Icon icon="mdi:calendar-month-outline" />
+                      <CalendarBtn 
+                        type="button" 
+                        onClick={() => openDatePicker(availableDateRef)}
+                        aria-label="Open date picker"
+                      >
+                        <Icon icon="mdi:calendar" />
                       </CalendarBtn>
                     </DateFieldRow>
                   </Field>
 
                   <Field>
-                    <FormLabel htmlFor="origin">Origin*</FormLabel>
-                    <TextInput id="origin" name="origin" value={form.origin} onChange={onChange} required maxLength={120} />
-                  </Field>
-                  <Field>
-                    <FormLabel htmlFor="destination_preference">Destination Preference</FormLabel>
-                    <TextInput id="destination_preference" name="destination_preference" value={form.destination_preference} onChange={onChange} maxLength={120} />
+                    <FormLabel htmlFor="origin">Origin (City, ST)</FormLabel>
+                    <TextInput
+                      id="origin"
+                      name="origin"
+                      value={form.origin}
+                      onChange={onChange}
+                      placeholder="e.g. Dallas, TX"
+                      required
+                    />
                   </Field>
 
                   <Field>
-                    <FormLabel htmlFor="trailer_type">Trailer Type*</FormLabel>
+                    <FormLabel htmlFor="destination_preference">Destination Preference</FormLabel>
+                    <TextInput
+                      id="destination_preference"
+                      name="destination_preference"
+                      value={form.destination_preference}
+                      onChange={onChange}
+                      placeholder="e.g. Anywhere east"
+                    />
+                  </Field>
+
+                  <Field>
+                    <FormLabel htmlFor="trailer_type">Trailer Type</FormLabel>
                     <UppercaseInput
+                      as="select"
                       id="trailer_type"
                       name="trailer_type"
                       value={form.trailer_type}
                       onChange={onChange}
-                      list="trailer-type-list"
-                      placeholder="TYPE TO SEARCH (e.g., VAN, REEFER)"
                       required
-                      maxLength={80}
-                      autoComplete="off"
-                    />
-                    <datalist id="trailer-type-list">
-                      {TRAILER_TYPES.map((t) => (
-                        <option key={t} value={toAllCaps(t)} />
+                    >
+                      <option value="">Select trailer type</option>
+                      {Array.from(TRAILER_TYPES_SET).map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
                       ))}
-                    </datalist>
+                    </UppercaseInput>
                   </Field>
+
                   <Field>
                     <FormLabel htmlFor="equipment">Equipment</FormLabel>
-                    <TextInput id="equipment" name="equipment" value={form.equipment} onChange={onChange} maxLength={120} />
+                    <TextInput
+                      id="equipment"
+                      name="equipment"
+                      value={form.equipment}
+                      onChange={onChange}
+                      placeholder="e.g. Air ride, liftgate"
+                    />
                   </Field>
 
                   <Field>
                     <FormLabel htmlFor="length_ft">Length (ft)</FormLabel>
-                    <TextInput id="length_ft" name="length_ft" type="number" inputMode="numeric" min={0} step={1} value={form.length_ft} onChange={onChange} />
+                    <TextInput
+                      id="length_ft"
+                      name="length_ft"
+                      type="number"
+                      min="1"
+                      value={form.length_ft}
+                      onChange={onChange}
+                      placeholder="e.g. 53"
+                    />
                   </Field>
+
                   <Field>
-                    <FormLabel htmlFor="weight_capacity">Weight Capacity</FormLabel>
-                    <TextInput id="weight_capacity" name="weight_capacity" type="number" inputMode="numeric" min={0} step={1} value={form.weight_capacity} onChange={onChange} />
+                    <FormLabel htmlFor="weight_capacity">Weight Capacity (lbs)</FormLabel>
+                    <TextInput
+                      id="weight_capacity"
+                      name="weight_capacity"
+                      type="number"
+                      min="1"
+                      step="100"
+                      value={form.weight_capacity}
+                      onChange={onChange}
+                      placeholder="e.g. 45000"
+                    />
                   </Field>
 
                   <Field $full>
-                    <FormLabel htmlFor="comment">Comment</FormLabel>
-                    <TextArea id="comment" name="comment" rows={3} maxLength={500} value={form.comment} onChange={onChange} />
+                    <FormLabel htmlFor="comment">Comments</FormLabel>
+                    <TextArea
+                      id="comment"
+                      name="comment"
+                      rows={3}
+                      value={form.comment}
+                      onChange={onChange}
+                      placeholder="Any additional details about the truck or load requirements"
+                    />
                   </Field>
                 </FormGrid>
-                {error && <ErrorText role="alert">{error}</ErrorText>}
+
+                {error && <ErrorText>{error}</ErrorText>}
+
                 <ModalFooter>
-                  <SecondaryBtn type="button" onClick={onCancel} disabled={adding}>Cancel</SecondaryBtn>
-                  <PrimaryBtn type="submit" disabled={adding}>{adding ? 'Saving…' : 'Post Truck'}</PrimaryBtn>
+                  <SecondaryBtn type="button" onClick={onCancel} disabled={adding}>
+                    Cancel
+                  </SecondaryBtn>
+                  <PrimaryBtn type="submit" disabled={adding}>
+                    {adding ? 'Posting...' : 'Post Truck'}
+                  </PrimaryBtn>
                 </ModalFooter>
               </form>
             </ModalCard>
@@ -455,6 +487,7 @@ const TruckBoard: React.FC = () => {
     </Page>
   );
 };
+
 
 // styled-components placed below the component (per preference)
 const Page = styled.div`

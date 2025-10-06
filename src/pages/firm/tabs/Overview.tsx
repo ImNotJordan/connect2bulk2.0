@@ -5,10 +5,12 @@ import type { Schema } from '../../../../amplify/data/resource';
 
 const client = generateClient<Schema>();
 
+
+
 type Series = {
   name: string;
   color: string;
-  data: number[]; // aligned with labels length
+  data: number[];
 };
 
 type LineChartProps = {
@@ -30,59 +32,80 @@ const Overview: React.FC = () => {
   const [truckLoadsError, setTruckLoadsError] = useState<string | null>(null);
 
   useEffect(() => {
+    const cachedPosted = sessionStorage.getItem("postedLoadsData");
+    const cachedTrucks = sessionStorage.getItem("truckLoadsData");
+  
+    let hasCache = false;
+  
+    if (cachedPosted) {
+      const posted = JSON.parse(cachedPosted);
+      setPostedLoads(posted.current);
+      setPrevPostedLoads(posted.previous);
+      setLoadingPosted(false); // show cached immediately
+      hasCache = true;
+    }
+    if (cachedTrucks) {
+      const trucks = JSON.parse(cachedTrucks);
+      setTruckLoads(trucks.current);
+      setPrevTruckLoads(trucks.previous);
+      setLoadingTrucks(false); // show cached immediately
+      hasCache = true;
+    }
+  
     const fetchData = async () => {
       try {
-        setLoadingTrucks(true);
-        setLoadingPosted(true);
-
+        // 👉 only show loader if no cache
+        if (!hasCache) {
+          setLoadingTrucks(true);
+          setLoadingPosted(true);
+        }
+  
         const now = new Date();
         const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         const firstDayPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-
-        // Fetch Posted Loads (current month)
-        const { data: postedCurrent, errors: postedErrors1 } = await client.models.Load.list({
+  
+        // Posted Loads
+        const { data: postedCurrent } = await client.models.Load.list({
           filter: { createdAt: { between: [firstDayThisMonth.toISOString(), firstDayNextMonth.toISOString()] } }
         });
-        if (postedErrors1) throw new Error('Failed to fetch current posted loads');
-
-        // Fetch Posted Loads (previous month)
-        const { data: postedPrev, errors: postedErrors2 } = await client.models.Load.list({
+        const { data: postedPrev } = await client.models.Load.list({
           filter: { createdAt: { between: [firstDayPrevMonth.toISOString(), firstDayThisMonth.toISOString()] } }
         });
-        if (postedErrors2) throw new Error('Failed to fetch previous posted loads');
-
         setPostedLoads(postedCurrent.length);
         setPrevPostedLoads(postedPrev.length);
-
-        // Fetch Truck Loads (current month)
-        const { data: truckCurrent, errors: truckErrors1 } = await client.models.Truck.list({
+        sessionStorage.setItem("postedLoadsData", JSON.stringify({
+          current: postedCurrent.length,
+          previous: postedPrev.length,
+        }));
+  
+        // Truck Loads
+        const { data: truckCurrent } = await client.models.Truck.list({
           filter: { createdAt: { between: [firstDayThisMonth.toISOString(), firstDayNextMonth.toISOString()] } }
         });
-        if (truckErrors1) throw new Error('Failed to fetch current truck loads');
-
-        // Fetch Truck Loads (previous month)
-        const { data: truckPrev, errors: truckErrors2 } = await client.models.Truck.list({
+        const { data: truckPrev } = await client.models.Truck.list({
           filter: { createdAt: { between: [firstDayPrevMonth.toISOString(), firstDayThisMonth.toISOString()] } }
         });
-        if (truckErrors2) throw new Error('Failed to fetch previous truck loads');
-
         setTruckLoads(truckCurrent.length);
         setPrevTruckLoads(truckPrev.length);
+        sessionStorage.setItem("truckLoadsData", JSON.stringify({
+          current: truckCurrent.length,
+          previous: truckPrev.length,
+        }));
       } catch (err) {
-        console.error('Error fetching data:', err);
-        setPostedLoadsError('Failed to load posted loads');
-        setTruckLoadsError('Failed to load truck loads');
+        console.error("Error fetching data:", err);
       } finally {
         setLoadingTrucks(false);
         setLoadingPosted(false);
       }
     };
-
+  
     fetchData();
   }, []);
+  
+  
 
-  // Percentage changes
+  // --- Percentage change calculations ---
   const postedGrowth = prevPostedLoads > 0
     ? (((postedLoads - prevPostedLoads) / prevPostedLoads) * 100).toFixed(1)
     : "0";
@@ -91,12 +114,7 @@ const Overview: React.FC = () => {
     : "0";
 
   const kpis = [
-    { 
-      label: 'Impressions', 
-      value: 1518, 
-      change: '+64%', 
-      changeColor: '#22c55e' 
-    },
+    { label: 'Impressions', value: 1518, change: '+64%', changeColor: '#22c55e' },
     { 
       label: 'Posted Loads', 
       value: loadingPosted ? '...' : postedLoadsError ? 'Error' : postedLoads, 
@@ -111,6 +129,7 @@ const Overview: React.FC = () => {
     },
   ] as const;
 
+  // Chart Data (static example for now)
   const labels = ['Jan','Feb','Mar','Apr','May','June','July','Aug','Sept','Oct','Nov','Dec'];
 
   const chart1: Series[] = [

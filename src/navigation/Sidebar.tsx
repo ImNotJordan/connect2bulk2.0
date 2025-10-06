@@ -20,7 +20,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   const [userEmail, setUserEmail] = useState<string>('')
   const [userRole, setUserRole] = useState<string>('')        // normalized role for logic
   const [originalRole, setOriginalRole] = useState<string>('') // raw role for display
-  const [company, setCompany] = useState<string>('')
+  const [comany, setCompany] = useState<string>('')
 
   // Map stored role codes or legacy strings to display labels (used for nav logic)
   const displayRole = (r: any): string => {

@@ -2,21 +2,26 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import styled from 'styled-components';
 import { Icon } from '@iconify-icon/react';
 import { useLoadContext } from '../../../context/LoadContext';
+import { useAlert } from '../../../components/AlertProvider';
 
 type Props = { 
   loads?: any[];
   onAddNewLoad: () => void; 
+  onDeleteLoad?: (id: string) => void;
+  userRole?: string | null; 
 };
 
-const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad }) => {
+const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad, onDeleteLoad, userRole }) => {
   // Search state
   const [searchText, setSearchText] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Data state
   const { loadData: contextRows, setLoadData: setContextRows, lastCreated } = useLoadContext();
+  const { info, warning } = useAlert();
   const [error] = useState<string | null>(null);
   const [localRows, setLocalRows] = useState<any[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const loading = false; // Loading state not needed for local data
 
   // Initialize with props or context data
@@ -100,6 +105,82 @@ const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad }) => {
     e.preventDefault();
     // Search is handled by the filteredRows calculation
   }, []);
+
+  const handleDelete = useCallback((id: string) => {
+    const loadToDelete = localRows.find(load => load.id === id);
+    
+    const { close } = info({
+      title: 'Delete Load',
+      message: `Are you sure you want to delete load ${loadToDelete?.load_number || ''}?`,
+      autoClose: false,
+      closable: true,
+      action: (
+        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
+          <button 
+            onClick={() => {
+              close();
+              // Show a cancelled message
+              info({
+                title: 'Cancelled',
+                message: 'Load deletion was cancelled',
+                autoClose: true,
+                autoCloseDuration: 3000,
+              });
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '4px',
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#1f2937',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              fontWeight: '500',
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={async () => {
+              close();
+              setDeletingId(id);
+              try {
+                if (onDeleteLoad) {
+                  await onDeleteLoad(id);
+                }
+                setLocalRows(prev => prev.filter(load => load.id !== id));
+              } catch (error) {
+                console.error('Error deleting load:', error);
+                warning({
+                  title: 'Error',
+                  message: 'Failed to delete load. Please try again.',
+                  autoClose: true,
+                  autoCloseDuration: 5000,
+                });
+              } finally {
+                setDeletingId(null);
+              }
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '4px',
+              border: '1px solid #dc2626',
+              background: '#dc2626',
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
+            onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+          >
+            {deletingId === id ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      )
+    });
+  }, [onDeleteLoad, localRows, info, warning, deletingId]);
 
   const onSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
@@ -222,6 +303,7 @@ const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad }) => {
               <th>Rate</th>
               <th>Frequency</th>
               <th>Comment</th>
+              {userRole === 'SUPER_MANAGER' && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -254,6 +336,19 @@ const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad }) => {
                 <td>{formatCurrency(typeof r.rate === 'number' ? r.rate : undefined)}</td>
                 <td>{r.frequency || ''}</td>
                 <td>{r.comment}</td>
+                {userRole === 'SUPER_MANAGER' && (
+                  <td>
+                    <DeleteButton 
+                      type="button" 
+                      onClick={() => handleDelete(r.id)}
+                      disabled={deletingId === r.id}
+                      aria-label={`Delete load ${r.load_number}`}
+                      title="Delete load"
+                    >
+                      <Icon icon="mdi:delete" />
+                    </DeleteButton>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -489,6 +584,28 @@ const PageNavBtn = styled.button`
   }
 
   svg { width: 18px; height: 18px; }
+`;
+
+const DeleteButton = styled.button`
+   background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+  }
+
+  &:focus {
+    outline: 2px solid rgba(220, 53, 69, 0.3);
+    outline-offset: 2px;
+  }
 `;
 
 export default AllFirmLoads;

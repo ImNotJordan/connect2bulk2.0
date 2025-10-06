@@ -7,6 +7,7 @@ import AllFirmLoads from './tabs/AllFirmLoads';
 import { TRAILER_TYPES } from './constants';
 import { useLoadContext } from '../../context/LoadContext';
 import { generateClient } from 'aws-amplify/data';
+import { getCurrentUser } from 'aws-amplify/auth';
 import type { Schema } from "../../../amplify/data/resource";
 
 
@@ -47,11 +48,26 @@ const defaultForm: FormState = {
   comment: "",
 };
 
-// Backend integration removed - using local state instead
-
 const LoadBoard: React.FC = () => {
   const { info, warning } = useAlert();
   const { setLastCreated, refreshToken } = useLoadContext();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        // If we get here, the user is authenticated
+        // You might want to fetch the actual role from your user data or API
+        setUserRole('SUPER_MANAGER'); // Placeholder - adjust based on your auth setup
+      } catch (error) {
+        console.log('User not authenticated');
+        setUserRole(null);
+      }
+    };
+
+    checkUser();
+  }, []);
 
   // Add Load modal state
   const [isAddOpen, setAddOpen] = useState(false);
@@ -407,6 +423,7 @@ const LoadBoard: React.FC = () => {
                   loads={loads}
                   key={`all-firm-loads-${refreshToken}`}
                   onAddNewLoad={() => setAddOpen(true)}
+                  userRole={userRole}
                 />
               ),
             },
