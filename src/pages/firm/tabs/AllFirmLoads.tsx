@@ -66,8 +66,20 @@ const AllFirmLoads: React.FC<Props> = ({
               close();
               try {
                 await onDeleteLoad(loadId);
+                // Update local state after successful deletion
+                setLocalRows(prev => prev.filter(load => load.id !== loadId));
+                // Update context if needed
+                if (setContextRows) {
+                  setContextRows(prev => prev.filter(load => load.id !== loadId));
+                }
               } catch (error) {
                 console.error('Error deleting load:', error);
+                info({
+                  title: 'Error',
+                  message: 'Failed to delete load. Please try again.',
+                  autoClose: true,
+                  autoCloseDuration: 5000,
+                });
               }
             }}
             style={{
@@ -86,38 +98,37 @@ const AllFirmLoads: React.FC<Props> = ({
     });
   };
 
+  // Track initial render with useRef
+  const isInitialMount = useRef(true);
+  
   // Initialize with props or context data
   useEffect(() => {
+    // Skip the effect on initial mount if we already have data
+    if (isInitialMount.current && (loads?.length > 0 || contextRows?.length > 0)) {
+      isInitialMount.current = false;
+      return;
+    }
+    
     let mounted = true;
     
-    const initializeData = () => {
+    const initializeData = async () => {
       if (!mounted) return;
       
-      if (loads && loads.length > 0) {
-        // Use the loads from props if available
+      // Only update if we have loads from props
+      if (loads?.length > 0) {
         setLocalRows(prev => {
-          // Only update if the loads are different from current state
-          if (JSON.stringify(prev) !== JSON.stringify(loads)) {
-            return [...loads];
-          }
-          return prev;
+          const loadsStr = JSON.stringify(loads);
+          const prevStr = JSON.stringify(prev);
+          return loadsStr !== prevStr ? [...loads] : prev;
         });
-        
-        // Only update context if it's different
-        if (JSON.stringify(contextRows) !== JSON.stringify(loads)) {
-          setContextRows?.(loads);
-        }
-      } else if (contextRows && contextRows.length > 0) {
-        // Fall back to context data
+      } 
+      // Fall back to context data if no loads from props
+      else if (contextRows?.length > 0) {
         setLocalRows(prev => {
-          if (JSON.stringify(prev) !== JSON.stringify(contextRows)) {
-            return [...contextRows];
-          }
-          return prev;
+          const contextStr = JSON.stringify(contextRows);
+          const prevStr = JSON.stringify(prev);
+          return contextStr !== prevStr ? [...contextRows] : prev;
         });
-      } else if (localRows.length === 0) {
-        // Only initialize with empty array if we don't have any data
-        setContextRows?.([]);
       }
     };
 
@@ -126,7 +137,20 @@ const AllFirmLoads: React.FC<Props> = ({
     return () => {
       mounted = false;
     };
-  }, [loads, contextRows, setContextRows]);
+  }, [loads, contextRows]); // Removed setContextRows from dependencies as it's stable
+  
+  // Sync context with local rows when needed
+  useEffect(() => {
+    if (!setContextRows) return;
+    
+    // Only update context if it's different from localRows
+    const contextStr = JSON.stringify(contextRows);
+    const localStr = JSON.stringify(localRows);
+    
+    if (contextStr !== localStr) {
+      setContextRows([...localRows]);
+    }
+  }, [localRows, contextRows, setContextRows]);
 
   // Handle new loads added via context
   useEffect(() => {
