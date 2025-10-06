@@ -7,12 +7,13 @@ import AllFirmLoads from './tabs/AllFirmLoads';
 import { TRAILER_TYPES } from './constants';
 import { useLoadContext } from '../../context/LoadContext';
 import { generateClient } from 'aws-amplify/data';
-import { getCurrentUser } from 'aws-amplify/auth';
 import type { Schema } from "../../../amplify/data/resource";
 
 
 
-const client = generateClient<Schema>();
+const client = generateClient<Schema>({
+  authMode: 'userPool', // enforce Cognito user pool auth
+});
 
 const TRAILER_TYPES_SET = new Set(TRAILER_TYPES.map((t) => toAllCaps(t)));
 
@@ -48,33 +49,46 @@ const defaultForm: FormState = {
   comment: "",
 };
 
+// Backend integration removed - using local state instead
+
 const LoadBoard: React.FC = () => {
   const { info, warning } = useAlert();
   const { setLastCreated, refreshToken } = useLoadContext();
-  const [userRole, setUserRole] = useState<string | null>(null);
 
+  // ✅ Load cached loads on mount
   useEffect(() => {
-    const checkUser = async () => {
+    const cached = sessionStorage.getItem('loads');
+    if (cached) {
       try {
-        const user = await getCurrentUser();
-        // If we get here, the user is authenticated
-        // You might want to fetch the actual role from your user data or API
-        setUserRole('SUPER_MANAGER'); // Placeholder - adjust based on your auth setup
-      } catch (error) {
-        console.log('User not authenticated');
-        setUserRole(null);
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setLoads(parsed);
+          setLoading(false);
+        }
+      } catch (_) {
+        // ignore parse errors
       }
-    };
-
-    checkUser();
+    } else {
+      fetchLoads();
+    }
   }, []);
+
+  // Fetch loads only if no cache or on manual refresh
+  useEffect(() => {
+    if (refreshToken > 0) {
+      fetchLoads();
+    }
+  }, [refreshToken]);
 
   // Add Load modal state
   const [isAddOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ ...defaultForm });
   const [loads, setLoads] = useState<Array<any>>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Refs for date inputs and handlers to open native calendar
   const pickupDateInputRef = useRef<HTMLInputElement | null>(null);
@@ -127,23 +141,74 @@ const LoadBoard: React.FC = () => {
     setForm({ ...defaultForm });
   };
 
-  // Fetch loads when component mounts
+  // Fetch loads from backend
   const fetchLoads = async () => {
     try {
+      setLoading(true);
       console.log('Fetching loads from backend...');
       const result = await client.models.Load.list();
       console.log('Fetched loads:', result);
       if (result.data) {
         setLoads(result.data);
+        // Cache the loads in sessionStorage
+        sessionStorage.setItem('loads', JSON.stringify(result.data));
       }
     } catch (err) {
       console.error('Error fetching loads:', err);
       setError('Failed to load loads. Please refresh the page.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteLoad = async (loadId: string) => {
+    if (!loadId) return;
+    
+    try {
+      setDeletingId(loadId);
+      setIsDeleting(true);
+      
+      // Delete from backend
+      await client.models.Load.delete({ id: loadId });
+      
+      // Optimistic UI update
+      setLoads(prevLoads => {
+        const updatedLoads = prevLoads.filter(load => load.id !== loadId);
+        // Update cache
+        sessionStorage.setItem('loads', JSON.stringify(updatedLoads));
+        return updatedLoads;
+      });
+      
+      info({
+        title: 'Success',
+        message: 'Load deleted successfully',
+        autoClose: true,
+        autoCloseDuration: 3000,
+      });
+      
+      // Refresh the list to ensure consistency
+      await fetchLoads();
+      
+    } catch (error) {
+      console.error('Error deleting load:', error);
+      
+      // Show error message
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete load';
+      warning({
+        title: 'Error',
+        message: errorMessage,
+        autoClose: true,
+        autoCloseDuration: 5000,
+      });
+    } finally {
+      setDeletingId(null);
+      setIsDeleting(false);
     }
   };
 
   // Initialize form with a random load number when modal opens and fetch loads on mount
   useEffect(() => {
+    console.log('useEffect triggered - refreshToken:', refreshToken);
     if (isAddOpen) {
       setForm((prev) => ({ ...prev, load_number: generateLoadNumber() }));
     } else {
@@ -270,31 +335,6 @@ const LoadBoard: React.FC = () => {
     return errors.length ? errors.join(" ") : null;
   };
 
-  function handleAddLoadLocal(loadData: any) {
-    const newLoad = {
-      ...loadData,
-      id: `local-${Date.now()}`,
-      status: "AVAILABLE",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-  
-    console.debug("[LoadBoard] Creating local load:", newLoad);
-    info({ message: "Load created successfully (local only)" });
-    setLastCreated(newLoad);
-    setAddOpen(false);
-  }
-
-  const checkAuth = async () => {
-    try {
-      const { data } = await client.models.Load.list(); // Simple query to check auth
-      return true;
-    } catch (err) {
-      console.error('Auth check failed:', err);
-      return false;
-    }
-  };
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('1. Form submission started');
@@ -345,56 +385,41 @@ const LoadBoard: React.FC = () => {
       }
       console.log('5. Required fields check passed');
 
-      // First try to use the backend if authenticated
-      const isAuthenticated = await checkAuth();
-      
-      if (isAuthenticated) {
-        try {
-          console.log('6. User is authenticated, attempting to create load in backend...');
-          const result = await client.models.Load.create({
-            load_number: payload.load_number,
-            pickup_date: payload.pickup_date,
-            delivery_date: payload.delivery_date,
-            origin: payload.origin,
-            destination: payload.destination,
-            trailer_type: payload.trailer_type,
-            equipment_requirement: payload.equipment_requirement,
-            miles: payload.miles,
-            rate: payload.rate,
-            frequency: payload.frequency,
-            comment: payload.comment,
-            created_at: payload.created_at,
-          });
-          console.log('7. Backend response:', result);
+      // Create load in the backend
+      console.log('6. Attempting to create load in backend...');
+      const result = await client.models.Load.create({
+        load_number: payload.load_number,
+        pickup_date: payload.pickup_date,
+        delivery_date: payload.delivery_date,
+        origin: payload.origin,
+        destination: payload.destination,
+        trailer_type: payload.trailer_type,
+        equipment_requirement: payload.equipment_requirement,
+        miles: payload.miles,
+        rate: payload.rate,
+        frequency: payload.frequency,
+        comment: payload.comment,
+        // Ensure the owner field is set to the current user
+        owner: undefined, // Let Amplify handle setting the owner automatically
+        created_at: payload.created_at,
+      });
+      console.log('7. Backend response:', result);
 
-          if (result.data) {
-            console.log('8. Load created successfully:', result.data);
-            info({ message: "Load created successfully in backend" });
-            setLastCreated(result.data);
-            setForm({ ...defaultForm });
-            setAddOpen(false);
-            setAdding(false);
-            return;
-          } else if (result.errors) {
-            throw new Error(result.errors[0]?.message || 'Failed to create load');
-          }
-        } catch (err: any) {
-          console.error('8. Error creating load in backend:', {
-            error: err,
-            message: err.message,
-            stack: err.stack
-          });
-          // Continue to fallback to local storage
-        }
-      } else {
-        console.log('6. User is not authenticated, falling back to local storage');
+      if (result.data) {
+        console.log('8. Load created successfully:', result.data);
+        info({ message: "Load created successfully" });
+        setLastCreated(result.data);
+        setForm({ ...defaultForm });
+        setAddOpen(false);
+        setAdding(false);
+        return;
+      } else if (result.errors) {
+        throw new Error(result.errors[0]?.message || 'Failed to create load');
       }
       
-      // Fallback to local storage if backend fails or user is not authenticated
-      console.log('9. Using local storage as fallback');
-      handleAddLoadLocal(payload);
-      setForm({ ...defaultForm });
-      setAddOpen(false);
+      // If we get here, there was an error with the backend and we're not using local storage
+      console.error('Failed to create load in backend and no local storage fallback');
+      throw new Error('Failed to create load. Please check your connection and try again.');
     } catch (err: any) {
       console.error('Unexpected error in handleCreate:', {
         error: err,
@@ -423,7 +448,8 @@ const LoadBoard: React.FC = () => {
                   loads={loads}
                   key={`all-firm-loads-${refreshToken}`}
                   onAddNewLoad={() => setAddOpen(true)}
-                  userRole={userRole}
+                  onDeleteLoad={handleDeleteLoad}
+                  deletingId={deletingId}
                 />
               ),
             },

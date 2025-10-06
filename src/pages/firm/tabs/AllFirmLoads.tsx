@@ -3,26 +3,88 @@ import styled from 'styled-components';
 import { Icon } from '@iconify-icon/react';
 import { useLoadContext } from '../../../context/LoadContext';
 import { useAlert } from '../../../components/AlertProvider';
+import type { Schema } from '../../../../amplify/data/resource';
 
-type Props = { 
-  loads?: any[];
-  onAddNewLoad: () => void; 
-  onDeleteLoad?: (id: string) => void;
-  userRole?: string | null; 
+type Props = {
+  loads: any[];
+  onAddNewLoad: () => void;
+  onDeleteLoad?: (loadId: string) => Promise<void>;
+  deletingId?: string | null;
 };
 
-const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad, onDeleteLoad, userRole }) => {
+const AllFirmLoads: React.FC<Props> = ({ 
+  loads = [], 
+  onAddNewLoad, 
+  onDeleteLoad,
+  deletingId 
+}) => {
   // Search state
   const [searchText, setSearchText] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Data state
+  // Data state and alert
   const { loadData: contextRows, setLoadData: setContextRows, lastCreated } = useLoadContext();
-  const { info, warning } = useAlert();
+  const { info } = useAlert();
   const [error] = useState<string | null>(null);
   const [localRows, setLocalRows] = useState<any[]>([]);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const loading = false; // Loading state not needed for local data
+
+  // Handle delete confirmation
+  const handleDeleteClick = (loadId?: string) => {
+    if (!loadId || !onDeleteLoad) return;
+    
+    // Show confirmation dialog
+    const { close } = info({
+      title: 'Delete Load',
+      message: `Are you sure you want to delete load ${loadId}?`,
+      autoClose: false,
+      closable: true,
+      action: (
+        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
+          <button 
+            onClick={() => {
+              close();
+              info({
+                title: 'Cancelled',
+                message: `Load ${loadId} deletion was cancelled`,
+                autoClose: true,
+                autoCloseDuration: 3000,
+              });
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '4px',
+              border: '1px solid #d1d5db',
+              background: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={async () => {
+              close();
+              try {
+                await onDeleteLoad(loadId);
+              } catch (error) {
+                console.error('Error deleting load:', error);
+              }
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '4px',
+              background: '#dc2626',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    });
+  };
 
   // Initialize with props or context data
   useEffect(() => {
@@ -106,82 +168,6 @@ const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad, onDeleteLoad,
     // Search is handled by the filteredRows calculation
   }, []);
 
-  const handleDelete = useCallback((id: string) => {
-    const loadToDelete = localRows.find(load => load.id === id);
-    
-    const { close } = info({
-      title: 'Delete Load',
-      message: `Are you sure you want to delete load ${loadToDelete?.load_number || ''}?`,
-      autoClose: false,
-      closable: true,
-      action: (
-        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
-          <button 
-            onClick={() => {
-              close();
-              // Show a cancelled message
-              info({
-                title: 'Cancelled',
-                message: 'Load deletion was cancelled',
-                autoClose: true,
-                autoCloseDuration: 3000,
-              });
-            }}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '4px',
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#1f2937',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              fontWeight: '500',
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={async () => {
-              close();
-              setDeletingId(id);
-              try {
-                if (onDeleteLoad) {
-                  await onDeleteLoad(id);
-                }
-                setLocalRows(prev => prev.filter(load => load.id !== id));
-              } catch (error) {
-                console.error('Error deleting load:', error);
-                warning({
-                  title: 'Error',
-                  message: 'Failed to delete load. Please try again.',
-                  autoClose: true,
-                  autoCloseDuration: 5000,
-                });
-              } finally {
-                setDeletingId(null);
-              }
-            }}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '4px',
-              border: '1px solid #dc2626',
-              background: '#dc2626',
-              color: 'white',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
-            onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
-          >
-            {deletingId === id ? 'Deleting...' : 'Delete'}
-          </button>
-        </div>
-      )
-    });
-  }, [onDeleteLoad, localRows, info, warning, deletingId]);
-
   const onSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -219,6 +205,24 @@ const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad, onDeleteLoad,
     return `${Math.max(diffMins, 0)}m`;
   }, []);
 
+  // Format a timestamp into a human-readable relative time (e.g., '5m', '2h', '3d')
+  const formatTimeAgo = (timestamp: string | Date): string => {
+    if (!timestamp) return 'Just now';
+    
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays > 0) return `${diffDays}d`;
+    
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours > 0) return `${diffHours}h`;
+    
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    return diffMins > 0 ? `${diffMins}m` : 'Just now';
+  };
+
   // Filter rows based on search text
   const filteredRows = useMemo(() => {
     if (!searchText.trim()) return localRows;
@@ -236,6 +240,23 @@ const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad, onDeleteLoad,
       );
     });
   }, [localRows, searchText]);
+
+  // Table columns
+  const columns = [
+    { key: 'created_at', header: 'Age' },
+    { key: 'load_number', header: 'Load #' },
+    { key: 'pickup_date', header: 'Pickup' },
+    { key: 'delivery_date', header: 'Delivery' },
+    { key: 'origin', header: 'Origin' },
+    { key: 'destination', header: 'Destination' },
+    { key: 'trailer_type', header: 'Trailer Type' },
+    { key: 'equipment_requirement', header: 'Equipment' },
+    { key: 'miles', header: 'Miles' },
+    { key: 'rate', header: 'Rate' },
+    { key: 'frequency', header: 'Freq' },
+    { key: 'comment', header: 'Comment' },
+    ...(onDeleteLoad ? [{ key: 'actions', header: 'Actions' }] : []),
+  ];
 
   return (
     <>
@@ -269,18 +290,6 @@ const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad, onDeleteLoad,
         </UserFilter>
 
         <RightActions>
-          <RefreshBtn
-            type="button"
-            onClick={() => {
-              // Just reset the search on refresh
-              setSearchText('');
-            }}
-            aria-label="Reset search"
-            title="Reset search"
-          >
-            <Icon icon="mdi:refresh" />
-            <span>Reset</span>
-          </RefreshBtn>
           <AddBtn type="button" onClick={onAddNewLoad} aria-label="Add new load">
             Add New Load
           </AddBtn>
@@ -291,64 +300,52 @@ const AllFirmLoads: React.FC<Props> = ({ loads = [], onAddNewLoad, onDeleteLoad,
         <StyledTable>
           <thead>
             <tr>
-              <th>Age</th>
-              <th>Load Number</th>
-              <th>Pickup Date</th>
-              <th>Delivery Date</th>
-              <th>Origin</th>
-              <th>Destination</th>
-              <th>Trailer Type</th>
-              <th>Equipment Requirement</th>
-              <th>Miles</th>
-              <th>Rate</th>
-              <th>Frequency</th>
-              <th>Comment</th>
-              {userRole === 'SUPER_MANAGER' && <th>Actions</th>}
+              {columns.map(col => (
+                <th key={col.key}>{col.header}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={12}>Loading…</td>
+                <td colSpan={columns.length}>Loading…</td>
               </tr>
             )}
             {error && !loading && (
               <tr>
-                <td colSpan={12} style={{ color: '#b00020' }}>{error}</td>
+                <td colSpan={columns.length} style={{ color: '#b00020' }}>{error}</td>
               </tr>
             )}
             {!loading && !error && localRows.length === 0 && (
               <tr>
-                <td colSpan={12}>No loads found.</td>
+                <td colSpan={columns.length}>No loads found.</td>
               </tr>
             )}
             {!loading && !error && filteredRows.map((r: any) => (
               <tr key={r.id ?? `${r.load_number}-${r.created_at}`}>
-                <td>{computeAge(r.created_at, r.pickup_date)}</td>
-                <td>{r.load_number}</td>
-                <td>{r.pickup_date}</td>
-                <td>{r.delivery_date}</td>
-                <td>{r.origin}</td>
-                <td>{r.destination}</td>
-                <td>{r.trailer_type}</td>
-                <td>{r.equipment_requirement}</td>
-                <td>{typeof r.miles === 'number' ? r.miles : ''}</td>
-                <td>{formatCurrency(typeof r.rate === 'number' ? r.rate : undefined)}</td>
-                <td>{r.frequency || ''}</td>
-                <td>{r.comment}</td>
-                {userRole === 'SUPER_MANAGER' && (
-                  <td>
-                    <DeleteButton 
-                      type="button" 
-                      onClick={() => handleDelete(r.id)}
-                      disabled={deletingId === r.id}
-                      aria-label={`Delete load ${r.load_number}`}
-                      title="Delete load"
-                    >
-                      <Icon icon="mdi:delete" />
-                    </DeleteButton>
-                  </td>
-                )}
+                {columns.map(col => (
+                  <TableCell key={col.key}>
+                    {col.key === 'actions' && onDeleteLoad ? (
+                     <DeleteButton 
+                     onClick={() => handleDeleteClick(r.id)}
+                     disabled={deletingId === r.id}
+                     aria-label="Delete load"
+                     title="Delete load"
+                   >
+                     <Icon 
+                       icon={deletingId === r.id ? 'mdi:loading' : 'mdi:delete'} 
+                       style={{
+                         animation: deletingId === r.id ? 'spin 1s linear infinite' : 'none',
+                       }}
+                     />
+                   </DeleteButton>
+                    ) : col.key === 'created_at' ? (
+                      r.created_at ? formatTimeAgo(r.created_at) : 'Just now'
+                    ) : (
+                      r[col.key] || '-'
+                    )}
+                  </TableCell>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -507,10 +504,51 @@ const TableWrap = styled.div`
   background: #fff;
 `;
 
+const TableCell = styled.td`
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(40, 44, 69, 0.08);
+  vertical-align: middle;
+  color: #2a2f45;
+  font-size: 13px;
+`;
+
+const DeleteButton = styled.button`
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  width: 32px;
+  height: 32px;
+
+  &:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+  }
+
+  &:focus {
+    outline: 2px solid rgba(220, 53, 69, 0.3);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;
+
 const StyledTable = styled.table`
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+  border-collapse: collapse;
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
 
   thead th {
     text-align: left;
@@ -584,28 +622,6 @@ const PageNavBtn = styled.button`
   }
 
   svg { width: 18px; height: 18px; }
-`;
-
-const DeleteButton = styled.button`
-   background: none;
-  border: none;
-  color: #dc3545;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: rgba(220, 53, 69, 0.1);
-  }
-
-  &:focus {
-    outline: 2px solid rgba(220, 53, 69, 0.3);
-    outline-offset: 2px;
-  }
 `;
 
 export default AllFirmLoads;

@@ -31,7 +31,7 @@ type Props = {
   loading: boolean;
   error: string | null;
   userRole?: string | null;
-  onDeleteTruck?: (truckId: string) => Promise<void>; // Matches the expected type in TruckBoard
+  onDeleteTruck?: (truckId: string) => Promise<void>;
 };
 
 const AllFirmTrucks: React.FC<Props> = ({
@@ -178,7 +178,7 @@ const AllFirmTrucks: React.FC<Props> = ({
     // Show confirmation dialog using AlertProvider
     const { close } = info({
       title: 'Delete Truck',
-      message: 'Are you sure you want to delete this truck?',
+      message: `Are you sure you want to delete truck ${id}?`,
       autoClose: false,
       closable: true,
       action: (
@@ -189,7 +189,7 @@ const AllFirmTrucks: React.FC<Props> = ({
               // Show a cancelled message
               info({
                 title: 'Cancelled',
-                message: 'Truck deletion was cancelled',
+                message: `Truck ${id} deletion was cancelled`,
                 autoClose: true,
                 autoCloseDuration: 3000,
               });
@@ -276,10 +276,6 @@ const AllFirmTrucks: React.FC<Props> = ({
         </SearchForm>
 
         <RightActions>
-          <RefreshBtn type="button" onClick={handleRefresh} disabled={isLoading}>
-            <Icon icon="mdi:refresh" />
-            <span>Refresh</span>
-          </RefreshBtn>
           <AddBtn type="button" onClick={onAddNewTruck}>
             Post Truck
           </AddBtn>
@@ -300,7 +296,7 @@ const AllFirmTrucks: React.FC<Props> = ({
               <th>Length (ft)</th>
               <th>Weight Capacity</th>
               <th>Comment</th>
-              {userRole === 'SUPER_MANAGER' && <th>Actions</th>}
+              {(userRole === 'SUPER_MANAGER' || userRole === 'MANAGER' || userRole === 'ADMIN') && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -328,8 +324,9 @@ const AllFirmTrucks: React.FC<Props> = ({
                   <td>{truck.equipment}</td>
                   <td>{typeof truck.length_ft === 'number' ? truck.length_ft : ''}</td>
                   <td>{typeof truck.weight_capacity === 'number' ? truck.weight_capacity : ''}</td>
-                  <td>{truck.comment}</td>
-                  {userRole === 'SUPER_MANAGER' && (
+                  <td>{truck.comment}
+                  </td>
+                  {(userRole === 'SUPER_MANAGER' || userRole === 'MANAGER' || userRole === 'ADMIN') && (
                     <td>
                       <DeleteBtn type="button" onClick={() => handleDeleteClick(truck.id)}>
                         <Icon icon="mdi:delete" />

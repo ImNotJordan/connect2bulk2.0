@@ -156,18 +156,27 @@ const Personal: React.FC = () => {
   ) => {
     const raw = (e.currentTarget as HTMLInputElement).value || '';
     const dial = form.countryCode || '';
+    
+    // If no country code is set, just update the value directly
     if (!dial) {
-      set('phone')(e as any);
+      setForm(prev => ({ ...prev, phone: raw }));
       return;
     }
-    const stripped = raw
-      .replace(/^\+\d{1,4}\s*/, '') 
-      .replace(new RegExp('^' + escapeRegExp(dial) + '\\s*'), ''); 
-    const next = `${dial} ${stripped}`.replace(/\s+/g, ' ').trimEnd();
-    setForm((prev) => ({ ...prev, phone: next }));
+    
+    // If the input doesn't start with the country code, prepend it
+    let next = raw;
+    if (!raw.startsWith(dial)) {
+      next = `${dial} ${raw.replace(/^\+?\d*\s*/, '')}`;
+    }
+    
+    // Clean up multiple spaces and trim
+    next = next.replace(/\s+/g, ' ').trimEnd();
+    
+    setForm(prev => ({ ...prev, phone: next }));
+    
     if (touched.phone) {
       const msg = validateField('phone', next);
-      setErrors((prev) => ({ ...prev, phone: msg }));
+      setErrors(prev => ({ ...prev, phone: msg }));
     }
   };
 

@@ -2,14 +2,12 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { sendResetEmail as sendResetEmailFn } from '../functions/sendResetEmail/resource';
 import { deleteCognitoUser as deleteCognitoUserFn } from '../functions/deleteCognitoUser/resource';
 
-// Define enum for firm_type
+// Define enums
 const FirmType = a.enum(['Carrier', 'Shipper', 'Broker', 'Other']);
-
-// Define enum for roles
 const Role = a.enum(['SUPER_MANAGER', 'MANAGER', 'MEMBER', 'Manager', 'Member', 'Admin', 'Regular']);
 
-// Define schema
 const schema = a.schema({
+
   Firm: a.model({
     firm_name: a.string(),
     address: a.string(),
@@ -35,7 +33,10 @@ const schema = a.schema({
     notes: a.string(),
     load_posts: a.integer(),
     truck_posts: a.integer(),
-  }).authorization((allow) => [allow.authenticated()]),
+  }).authorization((allow) => [
+    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'update', 'delete', 'read']),
+    allow.authenticated().to(['create', 'read', 'update']),
+  ]),
 
   User: a.model({
     first_name: a.string(),
@@ -44,7 +45,11 @@ const schema = a.schema({
     phone: a.string(),
     role: Role,
     firm_id: a.string(),
-  }).authorization((allow) => [allow.authenticated()]),
+  }).authorization((allow) => [
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'update', 'delete', 'read']),
+    allow.authenticated().to(['read']),
+  ]),
 
   Load: a.model({
     id: a.id().required(),
@@ -61,8 +66,10 @@ const schema = a.schema({
     comment: a.string(),
     created_at: a.datetime(),
   }).authorization((allow) => [
-    allow.publicApiKey().to(['create', 'read', 'update', 'delete']), // Allow public access for testing
-    allow.authenticated().to(['create', 'read', 'update', 'delete'])
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['create', 'read', 'update', 'delete']),
+    allow.publicApiKey().to(['create', 'read', 'update', 'delete']),
   ]),
 
   Truck: a.model({
@@ -78,8 +85,10 @@ const schema = a.schema({
     comment: a.string(),
     created_at: a.datetime(),
   }).authorization((allow) => [
-    allow.publicApiKey().to(['create', 'read', 'update', 'delete']), // Allow public access for testing
-    allow.authenticated().to(['create', 'read', 'update', 'delete'])
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+    allow.publicApiKey().to(['read']),
   ]),
 
   Team: a.model({
@@ -90,7 +99,11 @@ const schema = a.schema({
     manager_email: a.string(),
     members: a.integer(),
     created_at: a.datetime(),
-  }).authorization((allow) => [allow.authenticated()]),
+  }).authorization((allow) => [
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
 
   sendResetEmail: a.mutation()
     .arguments({
@@ -100,7 +113,10 @@ const schema = a.schema({
       lastName: a.string(),
     })
     .returns(a.boolean())
-    .authorization((allow) => [allow.authenticated()])
+    .authorization((allow) => [
+      allow.authenticated(),
+      allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']),
+    ])
     .handler(a.handler.function(sendResetEmailFn)),
 
   deleteCognitoUser: a.mutation()
@@ -109,7 +125,9 @@ const schema = a.schema({
       userPoolId: a.string(),
     })
     .returns(a.boolean())
-    .authorization((allow) => [allow.authenticated()])
+    .authorization((allow) => [
+      allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']),
+    ])
     .handler(a.handler.function(deleteCognitoUserFn)),
 });
 
