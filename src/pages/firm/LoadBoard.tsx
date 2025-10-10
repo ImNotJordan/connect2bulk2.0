@@ -4,6 +4,7 @@ import FolderTabs from '../../components/FolderTabs';
 import { Icon } from '@iconify-icon/react';
 import { useAlert } from '../../components/AlertProvider';
 import AllFirmLoads from './tabs/AllFirmLoads';
+import MyLoads from './tabs/MyLoads';
 import { TRAILER_TYPES } from './constants';
 import { useLoadContext } from '../../context/LoadContext';
 import { generateClient } from 'aws-amplify/data';
@@ -469,12 +470,11 @@ const LoadBoard: React.FC = () => {
             {
               id: "my",
               label: "My Loads",
-              content: (
-                <>
-                  <PanelTitle>My Loads</PanelTitle>
-                  <PanelText>Your saved and managed loads will appear here.</PanelText>
-                </>
-              ),
+              content: <MyLoads 
+                loads={[]} 
+                onAddNewLoad={() => {}}
+                onDeleteLoad={async () => {}}
+              />,
             },
           ]}
           brand={
