@@ -8,6 +8,7 @@ import MyLoads from './tabs/MyLoads';
 import { TRAILER_TYPES } from './constants';
 import { useLoadContext } from '../../context/LoadContext';
 import { generateClient } from 'aws-amplify/data';
+import { getCurrentUser } from 'aws-amplify/auth';
 import type { Schema } from "../../../amplify/data/resource";
 
 
@@ -344,8 +345,13 @@ const LoadBoard: React.FC = () => {
       }
       console.log('3. Form validation passed');
 
+      // Get current user's email
+      const user = await getCurrentUser();
+      const userEmail = user?.signInDetails?.loginId || '';
+
       const payload: any = {
         load_number: form.load_number.trim(),
+        sent_by: userEmail,
         pickup_date: form.pickup_date.trim(),
         delivery_date: form.delivery_date.trim() || null,
         origin: form.origin.trim(),
@@ -470,11 +476,14 @@ const LoadBoard: React.FC = () => {
             {
               id: "my",
               label: "My Loads",
-              content: <MyLoads 
-                loads={[]} 
-                onAddNewLoad={() => {}}
-                onDeleteLoad={async () => {}}
-              />,
+              content: (
+                <MyLoads 
+                  loads={loads}
+                  onAddNewLoad={() => setAddOpen(true)}
+                  onDeleteLoad={handleDeleteLoad}
+                  deletingId={loading ? 'deleting' : undefined}
+                />
+              ),
             },
           ]}
           brand={

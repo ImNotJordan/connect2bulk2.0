@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { Icon } from '@iconify-icon/react';
 import { useLoadContext } from '../../../context/LoadContext';
 import { useAlert } from '../../../components/AlertProvider';
+import { getCurrentUser } from 'aws-amplify/auth';
 import type { Schema } from '../../../../amplify/data/resource';
 
 type Props = {
@@ -100,8 +101,26 @@ const MyLoads: React.FC<Props> = ({
 
   // Track initial render with useRef
   const isInitialMount = useRef(true);
+  const [currentUser, setCurrentUser] = useState<{ username: string; email?: string } | null>(null);
   
-  // Initialize with props or context data
+  // Get current user on component mount
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUser({
+          username: user.username,
+          email: user.signInDetails?.loginId
+        });
+      } catch (error) {
+        console.error('Error fetching current user:', error);
+      }
+    };
+    
+    fetchCurrentUser();
+  }, []);
+  
+  // Initialize with props or context data, filtered by current user
   useEffect(() => {
     // Skip the effect on initial mount if we already have data
     if (isInitialMount.current && (loads?.length > 0 || contextRows?.length > 0)) {
@@ -112,22 +131,35 @@ const MyLoads: React.FC<Props> = ({
     let mounted = true;
     
     const initializeData = async () => {
-      if (!mounted) return;
+      if (!mounted || !currentUser) return;
+      
+      // Filter function to get loads for the current user
+      const filterUserLoads = (loads: any[]) => {
+        if (!currentUser) return [];
+        // Check both owner and sent_by fields for backward compatibility
+        return loads.filter(load => 
+          load.owner === currentUser.username || 
+          load.sent_by === currentUser.email ||
+          load.created_by === currentUser.email
+        );
+      };
       
       // Only update if we have loads from props
       if (loads?.length > 0) {
+        const userLoads = filterUserLoads(loads);
         setLocalRows(prev => {
-          const loadsStr = JSON.stringify(loads);
+          const loadsStr = JSON.stringify(userLoads);
           const prevStr = JSON.stringify(prev);
-          return loadsStr !== prevStr ? [...loads] : prev;
+          return loadsStr !== prevStr ? [...userLoads] : prev;
         });
       } 
       // Fall back to context data if no loads from props
       else if (contextRows?.length > 0) {
+        const userLoads = filterUserLoads(contextRows);
         setLocalRows(prev => {
-          const contextStr = JSON.stringify(contextRows);
+          const contextStr = JSON.stringify(userLoads);
           const prevStr = JSON.stringify(prev);
-          return contextStr !== prevStr ? [...contextRows] : prev;
+          return contextStr !== prevStr ? [...userLoads] : prev;
         });
       }
     };
@@ -137,7 +169,7 @@ const MyLoads: React.FC<Props> = ({
     return () => {
       mounted = false;
     };
-  }, [loads, contextRows]);
+  }, [loads, contextRows, currentUser]);
   
   // Sync context with local rows when needed
   useEffect(() => {
@@ -152,29 +184,41 @@ const MyLoads: React.FC<Props> = ({
     }
   }, [localRows, contextRows, setContextRows]);
 
-  // Handle new loads added via context
+  // Handle new loads added via context, only if created by current user
   useEffect(() => {
-    if (!lastCreated) return;
+    if (!lastCreated || !currentUser) return;
     
-    setLocalRows(prev => {
-      if (!prev.some(l => l.id === lastCreated.id)) {
-        return [lastCreated, ...prev];
-      }
-      return prev;
-    });
-  }, [lastCreated]);
-  
-  // Sync with props.loads when it changes
-  useEffect(() => {
-    if (loads && loads.length > 0) {
+    // Only add to local rows if the load was created by the current user
+    if (lastCreated.owner === currentUser.username || 
+        lastCreated.sent_by === currentUser.email ||
+        lastCreated.created_by === currentUser.email) {
       setLocalRows(prev => {
-        if (JSON.stringify(prev) !== JSON.stringify(loads)) {
-          return [...loads];
+        if (!prev.some(l => l.id === lastCreated.id)) {
+          return [lastCreated, ...prev];
         }
         return prev;
       });
     }
-  }, [loads]);
+  }, [lastCreated, currentUser]);
+  
+  // Sync with props.loads when it changes, filtered by current user
+  useEffect(() => {
+    if (loads && loads.length > 0 && currentUser) {
+      const userLoads = loads.filter(load => 
+        load.owner === currentUser.username || 
+        load.sent_by === currentUser.email ||
+        load.created_by === currentUser.email
+      );
+      setLocalRows(prev => {
+        if (JSON.stringify(prev) !== JSON.stringify(userLoads)) {
+          return [...userLoads];
+        }
+        return prev;
+      });
+    } else if (!currentUser) {
+      setLocalRows([]);
+    }
+  }, [loads, currentUser]);
 
   // Filter rows based on search text (using the existing filteredRows implementation)
 

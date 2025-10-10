@@ -53,6 +53,7 @@ const schema = a.schema({
 
   Load: a.model({
     id: a.id().required(),
+    sent_by: a.string(),
     load_number: a.string().required(),
     pickup_date: a.string().required(),
     delivery_date: a.string(),
