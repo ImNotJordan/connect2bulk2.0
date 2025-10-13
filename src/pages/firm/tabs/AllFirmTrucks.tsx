@@ -257,20 +257,11 @@ const AllFirmTrucks: React.FC<Props> = ({
             onClick={async () => {
               close();
               try {
-                await client.models.Truck.delete({ id });
-                setLocalTrucks((prev) => prev.filter((t) => t.id !== id));
-
-                // Update sessionStorage
-                const cached = sessionStorage.getItem('trucks');
-                if (cached) {
-                  const parsed = JSON.parse(cached) as TruckType[];
-                  sessionStorage.setItem(
-                    'trucks',
-                    JSON.stringify(parsed.filter((t) => t.id !== id))
-                  );
+                if (onDeleteTruck) {
+                  await onDeleteTruck(id);
+                  // Update local state to reflect the deletion
+                  setLocalTrucks((prev) => prev.filter((t) => t.id !== id));
                 }
-
-                onDeleteTruck?.(id);
               } catch (err) {
                 console.error('Failed to delete truck:', err);
                 info({
