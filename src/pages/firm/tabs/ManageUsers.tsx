@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../../amplify/data/resource';
-import { signUp, resetPassword, getCurrentUser } from 'aws-amplify/auth';
+import { signUp, resetPassword, getCurrentUser, updateUserAttributes, fetchAuthSession } from 'aws-amplify/auth';
+import { AdminUpdateUserAttributesCommand, CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
 import { useAlert } from '../../../components/AlertProvider';
 import outputs from '../../../../amplify_outputs.json';
+
 
 type Role = 'SUPER_MANAGER' | 'MANAGER' | 'MEMBER';
 
@@ -56,15 +58,53 @@ const ManageUsers: React.FC = () => {
   const [bulkRole, setBulkRole] = useState<Role>('MEMBER');
   const [bulkSaving, setBulkSaving] = useState<boolean>(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+
+  // Get current user email on component mount
+  useEffect(() => {
+    const getCurrentUserEmail = async () => {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUserEmail(user.signInDetails?.loginId || null);
+      } catch (error) {
+        console.error('Error getting current user:', error);
+      }
+    };
+    getCurrentUserEmail();
+  }, []);
+
+  // Helper function to get user attributes from Cognito
+  const fetchUserAttributes = async (email: string): Promise<{ role: string; phone?: string }> => {
+    try {
+      const { fetchUserAttributes } = await import('aws-amplify/auth');
+      // This assumes you have a way to fetch attributes for a specific user
+      // In a real app, you might need a backend API to fetch other users' attributes
+      // For now, we'll just return the current user's attributes if the email matches
+      const currentUser = await getCurrentUser();
+      if (currentUser.signInDetails?.loginId === email) {
+        const attributes = await fetchUserAttributes();
+        return {
+          role: attributes['custom:roles'] || '',
+          phone: attributes.phone_number || undefined
+        };
+      }
+      return { role: '' };
+    } catch (error) {
+      console.error('Error fetching user attributes from Cognito:', error);
+      return { role: '' };
+    }
+  };
 
   const loadUsers = async () => {
     setLoading(true);
     try {
+      let userList: any[] = [];
+      
       // Try User Pool first
       try {
         const { data, errors } = await client.models.User.list({ authMode: 'userPool' } as any);
         if (errors?.length) throw new Error(errors.map(e => e.message).join(', '));
-        setUsers(data as any);
+        userList = data as any[];
       } catch (err: any) {
         // Fallback to Identity Pool (IAM) if userPool fails due to auth
         const msg = String(err?.message ?? err);
@@ -74,13 +114,13 @@ const ManageUsers: React.FC = () => {
           try {
             const { data, errors } = await client.models.User.list({ authMode: 'identityPool' } as any);
             if (errors?.length) throw new Error(errors.map(e => e.message).join(', '));
-            setUsers(data as any);
+            userList = data as any[];
           } catch (err2: any) {
             const msg2 = String(err2?.message ?? err2);
             if (/serialize value|Invalid input for Enum/i.test(msg2)) {
               // Fallback: exclude role from selection set to avoid enum serialization issues
               const { data } = await (client.models.User.list as any)({ selectionSet: ['id','first_name','last_name','email','phone'], authMode: 'identityPool' });
-              setUsers(data as any);
+              userList = data as any[];
             } else {
               throw err2;
             }
@@ -88,11 +128,28 @@ const ManageUsers: React.FC = () => {
         } else if (isEnumSerialize) {
           // Fallback: exclude role from selection set to avoid enum serialization issues
           const { data } = await (client.models.User.list as any)({ selectionSet: ['id','first_name','last_name','email','phone'], authMode: 'userPool' });
-          setUsers(data as any);
+          userList = data as any[];
         } else {
           throw err;
         }
       }
+
+      // Fetch user attributes from Cognito for each user
+      const usersWithAttributes = await Promise.all(
+        userList.map(async (user) => {
+          if (user.email) {
+            const { role, phone } = await fetchUserAttributes(user.email);
+            return { 
+              ...user, 
+              role: role || user.role,
+              phone: phone || user.phone // Use Cognito phone number if available, fallback to existing
+            };
+          }
+          return user;
+        })
+      );
+
+      setUsers(usersWithAttributes);
     } catch (e: any) {
       console.error('Failed to load users:', e);
       alertApi.error({ title: 'Failed to load users', message: e?.message ?? 'Please try again.' });
@@ -219,28 +276,69 @@ const ManageUsers: React.FC = () => {
     setSavingRole(false);
   };
 
+  // Function to update Cognito user attributes using Amplify Auth
+  const updateCognitoUserAttributes = async (username: string, attributes: Record<string, string>) => {
+    try {
+      // For the current user
+      const currentUser = await getCurrentUser();
+      if (username === currentUser.username) {
+        await updateUserAttributes({
+          userAttributes: attributes
+        });
+        return true;
+      }
+      
+      // For other users (requires admin permissions)
+      const session = await fetchAuthSession();
+      if (!session.tokens) {
+        throw new Error('No valid session found');
+      }
+
+      const client = new CognitoIdentityProviderClient({
+        region: (outputs as any)?.aws_region || 'us-east-1',
+        credentials: session.credentials
+      });
+
+      const command = new AdminUpdateUserAttributesCommand({
+        UserPoolId: (outputs as any)?.auth?.user_pool_id,
+        Username: username,
+        UserAttributes: Object.entries(attributes).map(([Name, Value]) => ({ Name, Value }))
+      });
+
+      await client.send(command);
+      return true;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return false;
+    }
+  };
+
   const saveEditRole = async () => {
     if (!editingUserId) return;
     setSavingRole(true);
     try {
-      try {
-        const res = await client.models.User.update({ id: editingUserId, role: editingRole } as any, { authMode: 'userPool' } as any);
-        if (res.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(', '));
-      } catch (err: any) {
-        const msg = String(err?.message ?? err);
-        if (/Not Authorized/i.test(msg) || /Unauthorized/i.test(msg)) {
-          const res2 = await client.models.User.update({ id: editingUserId, role: editingRole } as any, { authMode: 'identityPool' } as any);
-          if (res2.errors?.length) throw new Error(res2.errors.map((e: any) => e.message).join(', '));
-        } else {
-          throw err;
-        }
+      const user = users.find(u => String(u.id) === String(editingUserId));
+      if (!user?.email) {
+        throw new Error('User email not found');
       }
-      setUsers(prev => prev.map(u => (String(u.id) === String(editingUserId) ? { ...u, role: editingRole } : u)));
-      alertApi.success({ title: 'Role updated', message: 'User role saved successfully.' });
-      setEditingUserId(null);
+
+      // Update role in Cognito custom:roles attribute
+      const success = await updateCognitoUserAttributes(user.email, { 'custom:roles': editingRole });
+      
+      if (success) {
+        // Update local state only after successful Cognito update
+        setUsers(prev => prev.map(u => (String(u.id) === String(editingUserId) ? { ...u, role: editingRole } : u)));
+        alertApi.success({ title: 'Role updated', message: 'User role updated successfully in Cognito.' });
+        setEditingUserId(null);
+      } else {
+        throw new Error('Failed to update role in Cognito');
+      }
     } catch (e: any) {
-      console.error('Save role failed:', e);
-      alertApi.error({ title: 'Failed to save', message: e?.message ?? 'Please try again.' });
+      console.error('Update role failed:', e);
+      alertApi.error({ 
+        title: 'Failed to update role', 
+        message: e?.message || 'Could not update user role in Cognito. Please try again.' 
+      });
     } finally {
       setSavingRole(false);
     }
@@ -297,7 +395,15 @@ const ManageUsers: React.FC = () => {
       await signUp({
         username: email,
         password: tempPwd,
-        options: { userAttributes: { email, given_name: first, family_name: last, ...(phoneE164 ? { phone_number: phoneE164 } : {}) } },
+        options: { 
+          userAttributes: { 
+            email, 
+            given_name: first, 
+            family_name: last, 
+            'custom:role': form.role,
+            ...(phoneE164 ? { phone_number: phoneE164 } : {}) 
+          } 
+        },
       });
 
       // 1a) Immediately send them a password reset email so they can set their own password via our /reset page
@@ -608,8 +714,20 @@ const ManageUsers: React.FC = () => {
                           </div>
                         ) : (
                           <div style={{ display: 'inline-flex', gap: 6 }}>
-                            <SecondaryButton type="button" onClick={() => startEditRole(u)}>Edit Role</SecondaryButton>
-                            <DangerButton type="button" onClick={() => deleteUser(u)} disabled={deletingId === String(u.id)}>
+                            <SecondaryButton 
+                              type="button" 
+                              onClick={() => startEditRole(u)} 
+                              disabled={currentUserEmail === u.email}
+                              title={currentUserEmail === u.email ? "Cannot edit your own role" : ""}
+                            >
+                              Edit Role
+                            </SecondaryButton>
+                            <DangerButton 
+                              type="button" 
+                              onClick={() => deleteUser(u)} 
+                              disabled={currentUserEmail === u.email || deletingId === String(u.id)}
+                              title={currentUserEmail === u.email ? "Cannot delete your own account" : ""}
+                            >
                               {deletingId === String(u.id) ? 'Deleting...' : 'Delete'}
                             </DangerButton>
                           </div>

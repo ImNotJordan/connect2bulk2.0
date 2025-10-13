@@ -38,6 +38,9 @@ const schema = a.schema({
     allow.authenticated().to(['create', 'read', 'update']),
   ]),
 
+  // ===========================
+  // User Model
+  // ===========================
   User: a.model({
     first_name: a.string(),
     last_name: a.string(),
@@ -51,6 +54,9 @@ const schema = a.schema({
     allow.authenticated().to(['read']),
   ]),
 
+  // ===========================
+  // Load Model
+  // ===========================
   Load: a.model({
     id: a.id().required(),
     sent_by: a.string(),
@@ -70,9 +76,11 @@ const schema = a.schema({
     allow.owner().to(['create', 'update', 'delete', 'read']),
     allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'read', 'update', 'delete']),
     allow.authenticated().to(['create', 'read', 'update', 'delete']),
-    allow.publicApiKey().to(['create', 'read', 'update', 'delete']),
   ]),
 
+  // ===========================
+  // Truck Model
+  // ===========================
   Truck: a.model({
     id: a.id().required(),
     truck_number: a.string(),
@@ -85,13 +93,19 @@ const schema = a.schema({
     weight_capacity: a.integer(),
     comment: a.string(),
     created_at: a.datetime(),
+    owner: a.string(),
   }).authorization((allow) => [
-    allow.owner().to(['create', 'update', 'delete', 'read']),
-    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'read', 'update', 'delete']),
-    allow.authenticated().to(['read']),
-    allow.publicApiKey().to(['read']),
+    // Allow owners to manage their own trucks
+    allow.owner(),
+    // Allow admins to manage all trucks
+    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['read', 'create', 'update', 'delete']),
+    // Allow authenticated users to create and read trucks
+    allow.authenticated().to(['create', 'read']),
   ]),
 
+  // ===========================
+  // Team Model
+  // ===========================
   Team: a.model({
     name: a.string(),
     description: a.string(),
@@ -106,6 +120,9 @@ const schema = a.schema({
     allow.authenticated().to(['read']),
   ]),
 
+  // ===========================
+  // Custom Function: sendResetEmail
+  // ===========================
   sendResetEmail: a.mutation()
     .arguments({
       to: a.string(),
@@ -120,6 +137,9 @@ const schema = a.schema({
     ])
     .handler(a.handler.function(sendResetEmailFn)),
 
+  // ===========================
+  // Custom Function: deleteCognitoUser
+  // ===========================
   deleteCognitoUser: a.mutation()
     .arguments({
       username: a.string(),
@@ -137,6 +157,6 @@ export type Schema = ClientSchema<typeof schema>;
 export const data = defineData({
   schema,
   authorizationModes: {
-    defaultAuthorizationMode: 'userPool', // use Cognito user pool auth
+    defaultAuthorizationMode: 'userPool', // use Cognito user pool auth only
   },
 });

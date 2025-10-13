@@ -3,9 +3,11 @@ import styled from 'styled-components';
 import FolderTabs from '../../components/FolderTabs';
 import { Icon } from '@iconify-icon/react';
 import { generateClient } from 'aws-amplify/data';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import type { Schema } from '../../../amplify/data/resource';
 import { useAlert } from '../../components/AlertProvider';
 import AllFirmTrucks from './tabs/AllFirmTrucks';
+import MyTrucks from './tabs/MyTrucks';
 import { TRAILER_TYPES_SET, toAllCaps } from './constants';
 
 const TruckBoard: React.FC = () => {
@@ -170,43 +172,61 @@ const TruckBoard: React.FC = () => {
     });
   };
 
-  const validateForm = (): string | null => {
-    const errors: string[] = [];
-    const tn = form.truck_number.trim();
-    if (!tn) errors.push('Truck Number is required.');
-    if (tn.length > 50) errors.push('Truck Number must be 50 characters or less.');
-    return errors.length ? errors.join(' ') : null;
-  };
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setAdding(true);
 
     try {
-      const payload = {
-        truck_number: form.truck_number.trim(),
-        available_date: form.available_date.trim(),
-        origin: form.origin.trim(),
-        destination_preference: form.destination_preference.trim(),
-        trailer_type: form.trailer_type.trim(),
-        equipment: form.equipment.trim(),
+      // Get the current authenticated user from Auth
+      const { getCurrentUser } = await import('aws-amplify/auth');
+      const { username, userId } = await getCurrentUser();
+      
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      console.log('Current user ID:', userId);
+      console.log('Current username:', username);
+
+      const truckInput = {
+        truck_number: form.truck_number.trim() || `T-${Date.now()}`,
+        available_date: form.available_date?.trim() || null,
+        origin: form.origin?.trim() || null,
+        destination_preference: form.destination_preference?.trim() || null,
+        trailer_type: form.trailer_type?.trim() || null,
+        equipment: form.equipment?.trim() || null,
         length_ft: form.length_ft ? parseInt(form.length_ft, 10) : null,
         weight_capacity: form.weight_capacity ? parseFloat(form.weight_capacity) : null,
-        comment: form.comment.trim(),
+        comment: form.comment?.trim() || null,
+        created_at: new Date().toISOString()
       };
+      
+      console.log('Creating truck with input:', truckInput);
 
-      const result = await client.models.Truck.create(payload);
-      if (result.data) {
-        setLastCreated(result.data);
-        setTrucks((prev) => {
-          const updated = [result.data, ...prev];
-          sessionStorage.setItem('trucks', JSON.stringify(updated)); // ✅ cache new truck
-          return updated;
-        });
-        incrementRefreshToken();
-        closeModal();
+      const { data: createdTruck, errors } = await client.models.Truck.create(truckInput, {
+        authMode: 'userPool',
+        authToken: (await fetchAuthSession()).tokens?.idToken?.toString(),
+      });
+      
+      if (errors && errors.length > 0) {
+        console.error('Error details:', errors);
+        throw new Error(errors[0]?.message || 'Failed to create truck');
       }
+
+      if (!createdTruck) {
+        throw new Error('No data returned from truck creation');
+      }
+
+      console.log('Truck created successfully:', createdTruck);
+      setLastCreated(createdTruck);
+      setTrucks((prev) => {
+        const updated = [createdTruck, ...prev];
+        sessionStorage.setItem('trucks', JSON.stringify(updated));
+        return updated;
+      });
+      incrementRefreshToken();
+      closeModal();
     } catch (err) {
       console.error('Error creating truck:', err);
       setError('Failed to create truck. Please try again.');
@@ -215,33 +235,12 @@ const TruckBoard: React.FC = () => {
     }
   };
 
-  // Get the current user's role from your auth context or session
-  // This is a placeholder - you'll need to replace this with your actual auth implementation
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Fetch the current user's role on component mount
   useEffect(() => {
-    // Replace this with your actual auth implementation
-    // For example, if you're using Amplify Auth:
-    // import { Auth } from 'aws-amplify';
-    // const fetchCurrentUser = async () => {
-    //   try {
-    //     const user = await Auth.currentAuthenticatedUser();
-    //     const userGroups = user.signInUserSession.accessToken.payload['cognito:groups'] || [];
-    //     setUserRole(userGroups.includes('SUPER_MANAGER') ? 'SUPER_MANAGER' : null);
-    //   } catch (error) {
-    //     console.error('Error fetching current user:', error);
-    //     setUserRole(null);
-    //   }
-    // };
-    // fetchCurrentUser();
-    
-    // For now, we'll simulate a SUPER_MANAGER role for testing
-    // Remove this in production and uncomment the actual implementation above
     setUserRole('SUPER_MANAGER');
   }, []);
 
-  // Handle truck deletion
   const handleDeleteTruck = async (truckId: string) => {
     try {
       await client.models.Truck.delete({ id: truckId });
@@ -316,10 +315,14 @@ const TruckBoard: React.FC = () => {
               id: 'my',
               label: 'My Trucks',
               content: (
-                <>
-                  <PanelTitle>My Trucks</PanelTitle>
-                  <PanelText>Your saved and managed trucks will appear here.</PanelText>
-                </>
+                <MyTrucks
+                  onAddNewTruck={() => setAddOpen(true)}
+                  lastCreated={lastCreated}
+                  trucks={trucks}
+                  loading={loading}
+                  error={error}
+                  onDeleteTruck={handleDeleteTruck}
+                />
               ),
             },
           ]}
@@ -756,4 +759,3 @@ const ToastSecondaryBtn = styled.button`
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85);
   }
 `;
-

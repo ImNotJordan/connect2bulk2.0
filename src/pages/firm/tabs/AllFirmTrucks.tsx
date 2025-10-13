@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Icon } from '@iconify-icon/react';
 import { generateClient } from 'aws-amplify/data';
@@ -20,6 +20,7 @@ type TruckType = {
   weight_capacity?: number | string;
   comment?: string;
   created_at?: string;
+  owner?: string; // Added owner field to match the schema
   __typename?: string;
 };
 
@@ -45,6 +46,8 @@ const AllFirmTrucks: React.FC<Props> = ({
   onDeleteTruck,
 }) => {
   const [searchText, setSearchText] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [localTrucks, setLocalTrucks] = useState<TruckType[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -78,20 +81,75 @@ const AllFirmTrucks: React.FC<Props> = ({
     }
   }, [lastCreated]);
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchText(e.target.value);
-  };
+  // Format a timestamp into a human-readable relative time (e.g., '5m', '2h', '3d')
+  const formatTimeAgo = useCallback((timestamp: string | Date): string => {
+    if (!timestamp) return 'Just now';
+    
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays > 0) return `${diffDays}d`;
+    
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours > 0) return `${diffHours}h`;
+    
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    return diffMins > 0 ? `${diffMins}m` : 'Just now';
+  }, []);
 
-  const clearSearch = () => {
+  // Filter trucks based on search text
+  const filteredTrucks = useMemo(() => {
+    if (!searchText.trim()) return localTrucks;
+    
+    const search = searchText.toLowerCase();
+    return localTrucks.filter(truck => {
+      return (
+        (truck.truck_number || '').toLowerCase().includes(search) ||
+        (truck.origin || '').toLowerCase().includes(search) ||
+        (truck.destination_preference || '').toLowerCase().includes(search) ||
+        (truck.trailer_type || '').toLowerCase().includes(search) ||
+        (truck.equipment || '').toLowerCase().includes(search) ||
+        (truck.comment || '').toLowerCase().includes(search)
+      );
+    });
+  }, [localTrucks, searchText]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredTrucks.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const paginatedTrucks = useMemo(() => {
+    return filteredTrucks.slice(startIndex, startIndex + rowsPerPage);
+  }, [filteredTrucks, startIndex, rowsPerPage]);
+
+  // handlePageChange is not used but kept for future reference
+  // const handlePageChange = useCallback((newPage: number) => {
+  //   setCurrentPage(newPage);
+  // }, []);
+
+  const handleRowsPerPageChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setRowsPerPage(Number(e.target.value));
+    setCurrentPage(1); // Reset to first page when changing rows per page
+  }, []);
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchText(e.target.value);
+    setCurrentPage(1); // Reset to first page on search
+  }, []);
+
+  const clearSearch = useCallback(() => {
     setSearchText('');
     searchInputRef.current?.focus();
-  };
+  }, []);
 
-  const handleSearchSubmit = (e: React.FormEvent) => e.preventDefault();
+  const handleNextPage = useCallback(() => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  }, [totalPages]);
 
-  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Escape') clearSearch();
-  };
+  const handlePrevPage = useCallback(() => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  }, []);
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -143,20 +201,6 @@ const AllFirmTrucks: React.FC<Props> = ({
   useEffect(() => {
     fetchRows();
   }, [refreshToken]);
-
-  const filteredTrucks = useMemo(() => {
-    if (!searchText.trim()) return localTrucks;
-    const searchLower = searchText.toLowerCase();
-    return localTrucks.filter(
-      (truck: TruckType) =>
-        truck.truck_number?.toLowerCase().includes(searchLower) ||
-        truck.origin?.toLowerCase().includes(searchLower) ||
-        truck.destination_preference?.toLowerCase().includes(searchLower) ||
-        truck.trailer_type?.toLowerCase().includes(searchLower)
-    );
-  }, [localTrucks, searchText]);
-
-  const handleRefresh = () => onAddNewTruck();
 
   const computeAge = (iso?: string, available?: string): string => {
     const base = iso || available;
@@ -256,28 +300,34 @@ const AllFirmTrucks: React.FC<Props> = ({
   return (
     <>
       <Toolbar>
-        <SearchForm onSubmit={handleSearchSubmit} role="search">
+        <SearchForm onSubmit={(e) => e.preventDefault()} role="search" aria-label="Search trucks">
           <SearchInput
             ref={searchInputRef}
             type="text"
             placeholder="Search trucks by any field"
+            aria-label="Search trucks by any field"
             value={searchText}
             onChange={handleSearchChange}
-            onKeyDown={onSearchKeyDown}
+            inputMode="search"
           />
           {searchText && (
-            <ClearBtn type="button" onClick={clearSearch}>
+            <ClearBtn type="button" onClick={clearSearch} aria-label="Clear search">
               <Icon icon="mdi:close" />
             </ClearBtn>
           )}
-          <SearchBtn type="submit">
+          <SearchBtn type="submit" aria-label="Search">
             <Icon icon="mdi:magnify" />
           </SearchBtn>
         </SearchForm>
 
+        <UserFilter aria-label="Filter by users">
+          <option value="">Filter by users</option>
+          <option value="all">All users</option>
+        </UserFilter>
+
         <RightActions>
-          <AddBtn type="button" onClick={onAddNewTruck}>
-            Post Truck
+          <AddBtn type="button" onClick={onAddNewTruck} aria-label="Add new truck">
+            Add New Truck
           </AddBtn>
         </RightActions>
       </Toolbar>
@@ -287,16 +337,18 @@ const AllFirmTrucks: React.FC<Props> = ({
           <thead>
             <tr>
               <th>Age</th>
-              <th>Truck Number</th>
-              <th>Available Date</th>
+              <th>Truck #</th>
+              <th>Available</th>
               <th>Origin</th>
-              <th>Destination Pref</th>
+              <th>Destination</th>
               <th>Trailer Type</th>
               <th>Equipment</th>
               <th>Length (ft)</th>
-              <th>Weight Capacity</th>
+              <th>Weight (lbs)</th>
               <th>Comment</th>
-              {(userRole === 'SUPER_MANAGER' || userRole === 'MANAGER' || userRole === 'ADMIN') && <th>Actions</th>}
+              {(userRole === 'SUPER_MANAGER' || userRole === 'MANAGER' || userRole === 'ADMIN') && (
+                <th>Actions</th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -308,24 +360,25 @@ const AllFirmTrucks: React.FC<Props> = ({
               <tr>
                 <td colSpan={userRole === 'SUPER_MANAGER' ? 11 : 10} style={{ color: '#b00020' }}>{error}</td>
               </tr>
-            ) : filteredTrucks.length === 0 ? (
+            ) : !isLoading && !error && filteredTrucks.length === 0 ? (
               <tr>
-                <td colSpan={userRole === 'SUPER_MANAGER' ? 11 : 10}>No trucks found.</td>
+                <td colSpan={userRole === 'SUPER_MANAGER' ? 11 : 10}>
+                  {searchText ? 'No matching trucks found.' : 'No trucks available.'}
+                </td>
               </tr>
             ) : (
-              filteredTrucks.map((truck: TruckType) => (
+              paginatedTrucks.map((truck: TruckType) => (
                 <tr key={truck.id ?? `${truck.truck_number}-${truck.created_at}`}>
-                  <td>{computeAge(truck.created_at, truck.available_date)}</td>
-                  <td>{truck.truck_number}</td>
-                  <td>{truck.available_date}</td>
-                  <td>{truck.origin}</td>
-                  <td>{truck.destination_preference}</td>
-                  <td>{truck.trailer_type}</td>
-                  <td>{truck.equipment}</td>
-                  <td>{typeof truck.length_ft === 'number' ? truck.length_ft : ''}</td>
-                  <td>{typeof truck.weight_capacity === 'number' ? truck.weight_capacity : ''}</td>
-                  <td>{truck.comment}
-                  </td>
+                  <td>{truck.created_at ? formatTimeAgo(truck.created_at) : 'Just now'}</td>
+                  <td>{truck.truck_number || '-'}</td>
+                  <td>{truck.available_date ? new Date(truck.available_date).toLocaleDateString() : '-'}</td>
+                  <td>{truck.origin || '-'}</td>
+                  <td>{truck.destination_preference || '-'}</td>
+                  <td>{truck.trailer_type || '-'}</td>
+                  <td>{truck.equipment || '-'}</td>
+                  <td>{truck.length_ft || '-'}</td>
+                  <td>{truck.weight_capacity ? `${truck.weight_capacity} lbs` : '-'}</td>
+                  <td>{truck.comment || '-'}</td>
                   {(userRole === 'SUPER_MANAGER' || userRole === 'MANAGER' || userRole === 'ADMIN') && (
                     <td>
                       <DeleteBtn type="button" onClick={() => handleDeleteClick(truck.id)}>
@@ -339,7 +392,43 @@ const AllFirmTrucks: React.FC<Props> = ({
           </tbody>
         </StyledTable>
 
-        {/* Pagination can remain the same as your original */}
+        {filteredTrucks.length > 0 && (
+          <PaginationRow>
+            <RowsPerPage>
+              <span>Rows per page:</span>
+              <RppSelect 
+                value={rowsPerPage} 
+                onChange={handleRowsPerPageChange} 
+                aria-label="Rows per page"
+              >
+                <option value={15}>15</option>
+                <option value={30}>30</option>
+                <option value={50}>50</option>
+              </RppSelect>
+            </RowsPerPage>
+            <PageInfo>
+              {filteredTrucks.length > 0 
+                ? `${startIndex + 1}-${Math.min(startIndex + rowsPerPage, filteredTrucks.length)} of ${filteredTrucks.length}` 
+                : '0-0 of 0'}
+            </PageInfo>
+            <Pager>
+              <PageNavBtn 
+                onClick={handlePrevPage} 
+                disabled={currentPage === 1}
+                aria-label="Previous page"
+              >
+                <Icon icon="mdi:chevron-left" />
+              </PageNavBtn>
+              <PageNavBtn 
+                onClick={handleNextPage} 
+                disabled={currentPage >= totalPages}
+                aria-label="Next page"
+              >
+                <Icon icon="mdi:chevron-right" />
+              </PageNavBtn>
+            </Pager>
+          </PaginationRow>
+        )}
       </TableWrap>
     </>
   );
@@ -444,65 +533,135 @@ const RightActions = styled.div`
   background: #fff;
 `;
 
-const RefreshBtn = styled.button`
-  appearance: none;
-  border: 1px solid rgba(40, 44, 69, 0.16);
-  border-radius: 8px;
-  padding: 9px 12px;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  background: #fff;
+const UserFilter = styled.select`
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background-color: #fff;
+  font-size: 14px;
   color: #1f2937;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: background 160ms ease, transform 80ms ease;
-  &:hover { background: #f3f4f6; }
-  &:active { transform: translateY(0.5px); }
-  &:disabled { opacity: 0.6; cursor: not-allowed; }
-  svg { width: 18px; height: 18px; }
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 40px;
+
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
 `;
 
-/* Table */
 const TableWrap = styled.div`
-  border: 1px solid rgba(40, 44, 69, 0.06);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #ffffff;
+  border: 1px solid rgba(40, 44, 69, 0.08);
   border-radius: 10px;
-  overflow-x: auto; /* allow horizontal scroll on smaller screens */
-  overflow-y: hidden;
-  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  margin-bottom: 16px;
 `;
 
 const DeleteBtn = styled.button`
- background: none;
+  appearance: none;
   border: none;
-  color: #dc3545;
+  background: transparent;
+  color: #dc2626;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   transition: background-color 0.2s;
 
   &:hover {
-    background-color: rgba(220, 53, 69, 0.1);
+    background-color: #fef2f2;
   }
 
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const PaginationRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(40, 44, 69, 0.08);
+  background: #fff;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+`;
+
+const RowsPerPage = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #4b5563;
+`;
+
+const RppSelect = styled.select`
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background-color: #fff;
+  font-size: 14px;
+  color: #1f2937;
+  cursor: pointer;
+  transition: border-color 0.2s;
+
   &:focus {
-    outline: 2px solid rgba(220, 53, 69, 0.3);
-    outline-offset: 2px;
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+`;
+
+const PageInfo = styled.span`
+  font-size: 14px;
+  color: #4b5563;
+`;
+
+const Pager = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+const PageNavBtn = styled.button`
+  appearance: none;
+  border: 1px solid rgba(40, 44, 69, 0.16);
+  background: #fff;
+  color: #1f2937;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
 const StyledTable = styled.table`
   width: 100%;
   border-collapse: collapse;
-  margin-top: 12px;
   background: #fff;
   border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   
   thead th {
     text-align: left;
@@ -523,55 +682,6 @@ const StyledTable = styled.table`
   }
 `;
 
-/* Pagination */
-const PaginationRow = styled.div`
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-top: 1px solid rgba(40, 44, 69, 0.06);
-`;
-
-const RowsPerPage = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #6c757d;
-  font-size: 13px;
-`;
-
-const RppSelect = styled.select`
-  border: 1px solid rgba(40, 44, 69, 0.16);
-  border-radius: 6px;
-  padding: 6px 8px;
-  background: #fff;
-  color: #1f2937;
-`;
-
-const Pager = styled.div`
-  display: inline-flex;
-  gap: 6px;
-`;
-
-const PageNavBtn = styled.button`
-  appearance: none;
-  border: 1px solid rgba(40, 44, 69, 0.16);
-  background: #fff;
-  color: #1f2937;
-  width: 32px;
-  height: 28px;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  svg { width: 18px; height: 18px; }
-`;
+/* Styled components are defined above */
 
 export default AllFirmTrucks;

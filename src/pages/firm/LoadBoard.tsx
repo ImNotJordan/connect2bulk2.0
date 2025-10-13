@@ -476,14 +476,11 @@ const LoadBoard: React.FC = () => {
             {
               id: "my",
               label: "My Loads",
-              content: (
-                <MyLoads 
-                  loads={loads}
-                  onAddNewLoad={() => setAddOpen(true)}
-                  onDeleteLoad={handleDeleteLoad}
-                  deletingId={loading ? 'deleting' : undefined}
-                />
-              ),
+              content: <MyLoads 
+                loads={[]} 
+                onAddNewLoad={() => {}}
+                onDeleteLoad={async () => {}}
+              />,
             },
           ]}
           brand={

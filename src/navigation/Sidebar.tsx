@@ -20,17 +20,23 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   const [userEmail, setUserEmail] = useState<string>('')
   const [userRole, setUserRole] = useState<string>('')        // normalized role for logic
   const [originalRole, setOriginalRole] = useState<string>('') // raw role for display
-  const [comany, setCompany] = useState<string>('')
+  const [company, setCompany] = useState<string>('')
 
   // Map stored role codes or legacy strings to display labels (used for nav logic)
   const displayRole = (r: any): string => {
-    const v = String(r ?? '').toUpperCase()
-    if (v === 'SUPERADMIN') return 'SuperAdmin'
-    if (v === 'MEMBER') return 'Member'
-    if (r === 'Admin') return 'SuperAdmin'
-    if (r === 'Regular') return 'Member'
-    if (r === 'SuperAdmin' || r === 'Member') return String(r)
-    return ''
+    console.log('Raw role value:', r);
+    if (!r) {
+      console.log('No role provided');
+      return '';
+    }
+    const v = String(r).trim().toUpperCase();
+    console.log('Normalized role value:', v);
+    
+    if (v === 'SUPERADMIN' || v === 'ADMIN') return 'SuperAdmin';
+    if (v === 'MEMBER' || v === 'REGULAR') return 'Member';
+    
+    console.log('No matching role found for value:', v);
+    return '';
   }
 
   // Simplified fetch with error handling
@@ -62,32 +68,19 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         setUserName([first, last].filter(Boolean).join(' '))
         setUserEmail(attrs.email || '')
 
-        if (!email) {
-          console.log('3. No email found, skipping role fetch')
-          return
-        }
-
-        console.log('4. Fetching user role...')
-        const users = await tryList(() => 
-          client.models.User.list({
-            filter: { email: { eq: email } },
-            limit: 1,
-            authMode: 'userPool'
-          } as any)
-        )
-        
-        console.log('5. User data from API:', users)
-        const userData = Array.isArray(users) ? users[0] : users?.[0]
-        if (userData?.role) {
-          const roleToDisplay = displayRole(userData.role)
-          console.log('6. Setting user role:', { originalRole: userData.role, displayRole: roleToDisplay })
-          setOriginalRole(userData.role) // show in UI
-          setUserRole(roleToDisplay)     // use for nav logic
+        // Get role from Cognito custom attributes
+        const role = attrs['custom:roles'] || '';
+        console.log('3. User role from Cognito:', role);
+        if (role) {
+          const roleToDisplay = displayRole(role);
+          console.log('4. Setting user role:', { originalRole: role, displayRole: roleToDisplay });
+          setOriginalRole(role);
+          setUserRole(roleToDisplay);
         } else {
-          console.log('6. No role found in user data')
+          console.log('4. No role found in Cognito attributes');
         }
 
-        // Try to get firm data
+        // Try to get firm data for company name
         const firmId = localStorage.getItem('c2b:myFirmId')
         if (firmId) {
           const firmData = await tryList(() => 
@@ -203,8 +196,13 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             <UserInfo>
               <UserName $collapsed={collapsed}>{userName || userEmail || '—'}</UserName>
               <UserMeta>
-                {originalRole ? (<BadgeRole>{originalRole}</BadgeRole>) : null}
+                {originalRole ? (
+                  <BadgeRole data-testid="user-role">{originalRole}</BadgeRole>
+                ) : (
+                  <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No role assigned</span>
+                )}
               </UserMeta>
+              <CompanyLine $collapsed={collapsed}>{company}</CompanyLine>
             </UserInfo>
           </UserCard>
           <SignOutButton
@@ -577,8 +575,13 @@ const UserName = styled.div<{ $collapsed: boolean }>`
 
 const UserMeta = styled.div`
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   gap: 6px;
 `
 
