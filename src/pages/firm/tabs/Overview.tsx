@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../../amplify/data/resource';
+import { FaTruckLoading, FaTruckMoving } from 'react-icons/fa';
 
 const client = generateClient<Schema>();
 
@@ -24,16 +25,35 @@ const Overview: React.FC = () => {
   const [postedLoads, setPostedLoads] = useState<number>(0);
   const [prevPostedLoads, setPrevPostedLoads] = useState<number>(0);
   const [loadingPosted, setLoadingPosted] = useState<boolean>(true);
-  const [postedLoadsError, setPostedLoadsError] = useState<string | null>(null);
 
   const [truckLoads, setTruckLoads] = useState<number>(0);
   const [prevTruckLoads, setPrevTruckLoads] = useState<number>(0);
   const [loadingTrucks, setLoadingTrucks] = useState<boolean>(true);
-  const [truckLoadsError, setTruckLoadsError] = useState<string | null>(null);
+  
+  const [todayPickups, setTodayPickups] = useState<number>(0);
+  const [yesterdayPickups, setYesterdayPickups] = useState<number>(0);
+  const [todayDeliveries, setTodayDeliveries] = useState<number>(0);
+  const [yesterdayDeliveries, setYesterdayDeliveries] = useState<number>(0);
+  const [loadingPickups, setLoadingPickups] = useState<boolean>(true);
+  const [loadingDeliveries, setLoadingDeliveries] = useState<boolean>(true);
+
+  const getStartOfDay = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const getEndOfDay = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  };
 
   useEffect(() => {
     const cachedPosted = sessionStorage.getItem("postedLoadsData");
     const cachedTrucks = sessionStorage.getItem("truckLoadsData");
+    const cachedPickups = sessionStorage.getItem("todayPickupsData");
+    const cachedDeliveries = sessionStorage.getItem("todayDeliveriesData");
   
     let hasCache = false;
   
@@ -41,62 +61,150 @@ const Overview: React.FC = () => {
       const posted = JSON.parse(cachedPosted);
       setPostedLoads(posted.current);
       setPrevPostedLoads(posted.previous);
-      setLoadingPosted(false); // show cached immediately
+      setLoadingPosted(false);
       hasCache = true;
     }
     if (cachedTrucks) {
       const trucks = JSON.parse(cachedTrucks);
       setTruckLoads(trucks.current);
       setPrevTruckLoads(trucks.previous);
-      setLoadingTrucks(false); // show cached immediately
+      setLoadingTrucks(false);
+      hasCache = true;
+    }
+    if (cachedPickups) {
+      const pickups = JSON.parse(cachedPickups);
+      setTodayPickups(pickups.today);
+      setYesterdayPickups(pickups.yesterday);
+      setLoadingPickups(false);
+      hasCache = true;
+    }
+    if (cachedDeliveries) {
+      const deliveries = JSON.parse(cachedDeliveries);
+      setTodayDeliveries(deliveries.today);
+      setYesterdayDeliveries(deliveries.yesterday);
+      setLoadingDeliveries(false);
       hasCache = true;
     }
   
     const fetchData = async () => {
       try {
-        // 👉 only show loader if no cache
         if (!hasCache) {
           setLoadingTrucks(true);
           setLoadingPosted(true);
+          setLoadingPickups(true);
+          setLoadingDeliveries(true);
         }
   
         const now = new Date();
+        const todayStart = getStartOfDay(now);
+        const todayEnd = getEndOfDay(now);
+        const yesterdayStart = new Date(todayStart);
+        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+        const yesterdayEnd = new Date(todayEnd);
+        yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+        
         const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         const firstDayPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   
-        // Posted Loads
-        const { data: postedCurrent } = await client.models.Load.list({
-          filter: { createdAt: { between: [firstDayThisMonth.toISOString(), firstDayNextMonth.toISOString()] } }
-        });
-        const { data: postedPrev } = await client.models.Load.list({
-          filter: { createdAt: { between: [firstDayPrevMonth.toISOString(), firstDayThisMonth.toISOString()] } }
-        });
+        // Fetch data in parallel
+        const [
+          { data: postedCurrent },
+          { data: postedPrev },
+          { data: truckCurrent },
+          { data: truckPrev },
+          { data: todayPickupData },
+          { data: yesterdayPickupData },
+          { data: todayDeliveryData },
+          { data: yesterdayDeliveryData }
+        ] = await Promise.all([
+          // Posted Loads (monthly)
+          client.models.Load.list({
+            filter: { createdAt: { between: [firstDayThisMonth.toISOString(), firstDayNextMonth.toISOString()] } }
+          }),
+          client.models.Load.list({
+            filter: { createdAt: { between: [firstDayPrevMonth.toISOString(), firstDayThisMonth.toISOString()] } }
+          }),
+          // Truck Loads (monthly)
+          client.models.Truck.list({
+            filter: { createdAt: { between: [firstDayThisMonth.toISOString(), firstDayNextMonth.toISOString()] } }
+          }),
+          client.models.Truck.list({
+            filter: { createdAt: { between: [firstDayPrevMonth.toISOString(), firstDayThisMonth.toISOString()] } }
+          }),
+          // Today's Pickups
+          client.models.Load.list({
+            filter: { 
+              and: [
+                { pickup_date: { ge: todayStart.toISOString() } },
+                { pickup_date: { le: todayEnd.toISOString() } }
+              ]
+            }
+          }),
+          // Yesterday's Pickups
+          client.models.Load.list({
+            filter: { 
+              and: [
+                { pickup_date: { ge: yesterdayStart.toISOString() } },
+                { pickup_date: { le: yesterdayEnd.toISOString() } }
+              ]
+            }
+          }),
+          // Today's Deliveries
+          client.models.Load.list({
+            filter: { 
+              and: [
+                { delivery_date: { ge: todayStart.toISOString() } },
+                { delivery_date: { le: todayEnd.toISOString() } }
+              ]
+            }
+          }),
+          // Yesterday's Deliveries
+          client.models.Load.list({
+            filter: { 
+              and: [
+                { delivery_date: { ge: yesterdayStart.toISOString() } },
+                { delivery_date: { le: yesterdayEnd.toISOString() } }
+              ]
+            }
+          })
+        ]);
+
+        // Update state and cache
         setPostedLoads(postedCurrent.length);
         setPrevPostedLoads(postedPrev.length);
         sessionStorage.setItem("postedLoadsData", JSON.stringify({
           current: postedCurrent.length,
           previous: postedPrev.length,
         }));
-  
-        // Truck Loads
-        const { data: truckCurrent } = await client.models.Truck.list({
-          filter: { createdAt: { between: [firstDayThisMonth.toISOString(), firstDayNextMonth.toISOString()] } }
-        });
-        const { data: truckPrev } = await client.models.Truck.list({
-          filter: { createdAt: { between: [firstDayPrevMonth.toISOString(), firstDayThisMonth.toISOString()] } }
-        });
+
         setTruckLoads(truckCurrent.length);
         setPrevTruckLoads(truckPrev.length);
         sessionStorage.setItem("truckLoadsData", JSON.stringify({
           current: truckCurrent.length,
           previous: truckPrev.length,
         }));
+
+        setTodayPickups(todayPickupData.length);
+        setYesterdayPickups(yesterdayPickupData.length);
+        sessionStorage.setItem("todayPickupsData", JSON.stringify({
+          today: todayPickupData.length,
+          yesterday: yesterdayPickupData.length,
+        }));
+
+        setTodayDeliveries(todayDeliveryData.length);
+        setYesterdayDeliveries(yesterdayDeliveryData.length);
+        sessionStorage.setItem("todayDeliveriesData", JSON.stringify({
+          today: todayDeliveryData.length,
+          yesterday: yesterdayDeliveryData.length,
+        }));
       } catch (err) {
         console.error("Error fetching data:", err);
       } finally {
         setLoadingTrucks(false);
         setLoadingPosted(false);
+        setLoadingPickups(false);
+        setLoadingDeliveries(false);
       }
     };
   
@@ -113,20 +221,45 @@ const Overview: React.FC = () => {
     ? (((truckLoads - prevTruckLoads) / prevTruckLoads) * 100).toFixed(1)
     : "0";
 
+  // Calculate percentage changes
+  const pickupGrowth = yesterdayPickups > 0 
+    ? (((todayPickups - yesterdayPickups) / yesterdayPickups) * 100).toFixed(1)
+    : todayPickups > 0 ? '100' : '0';
+    
+  const deliveryGrowth = yesterdayDeliveries > 0
+    ? (((todayDeliveries - yesterdayDeliveries) / yesterdayDeliveries) * 100).toFixed(1)
+    : todayDeliveries > 0 ? '100' : '0';
+
   const kpis = [
-    { label: 'Impressions', value: 1518, change: '+64%', changeColor: '#22c55e' },
+    { label: 'Impressions', value: 1518, change: '+64%', changeColor: '#22c55e', icon: null },
     { 
       label: 'Posted Loads', 
-      value: loadingPosted ? '...' : postedLoadsError ? 'Error' : postedLoads, 
+      value: loadingPosted ? '...' : postedLoads, 
       change: `${postedGrowth}%`, 
-      changeColor: Number(postedGrowth) >= 0 ? '#22c55e' : '#ef4444' 
+      changeColor: Number(postedGrowth) >= 0 ? '#22c55e' : '#ef4444',
+      icon: null
     },
     { 
       label: 'Truck Loads', 
-      value: loadingTrucks ? '...' : truckLoadsError ? 'Error' : truckLoads, 
+      value: loadingTrucks ? '...' : truckLoads, 
       change: `${truckGrowth}%`, 
-      changeColor: Number(truckGrowth) >= 0 ? '#22c55e' : '#ef4444' 
+      changeColor: Number(truckGrowth) >= 0 ? '#22c55e' : '#ef4444',
+      icon: null
     },
+    { 
+      label: 'Today\'s Pickups',
+      value: loadingPickups ? '...' : todayPickups,
+      change: `${pickupGrowth}%`,
+      changeColor: Number(pickupGrowth) >= 0 ? '#22c55e' : '#ef4444',
+      icon: <FaTruckLoading style={{ color: '#3b82f6', marginRight: '8px' }} />
+    },
+    { 
+      label: 'Today\'s Deliveries',
+      value: loadingDeliveries ? '...' : todayDeliveries,
+      change: `${deliveryGrowth}%`,
+      changeColor: Number(deliveryGrowth) >= 0 ? '#22c55e' : '#ef4444',
+      icon: <FaTruckMoving style={{ color: '#8b5cf6', marginRight: '8px' }} />
+    }
   ] as const;
 
   // Chart Data (static example for now)
@@ -149,8 +282,15 @@ const Overview: React.FC = () => {
       <SectionHeader>View your impressions, trucks loads, posted loads over time.</SectionHeader>
       <KPIGrid>
         {kpis.map((k) => (
-          <KpiCard key={k.label} aria-label={`${k.label} ${k.value} (${k.change})`}>
-            <KpiLabel>{k.label}</KpiLabel>
+          <KpiCard 
+            key={k.label} 
+            aria-label={`${k.label} ${k.value} (${k.change})`}
+            data-label={k.label}
+          >
+            <KpiLabel>
+              {k.icon || null}
+              {k.label}
+            </KpiLabel>
             <KpiValueRow>
               <KpiValue>{typeof k.value === 'number' ? k.value.toLocaleString() : k.value}</KpiValue>
               <KpiDelta style={{ color: k.changeColor }}>{k.change}</KpiDelta>
@@ -269,13 +409,20 @@ const SectionHeader = styled.h4`
 
 const KPIGrid = styled.div`
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  @media (min-width: 560px) {
-    grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
-  @media (min-width: 900px) {
-    grid-template-columns: repeat(3, 1fr);
+  
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+  
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
   }
 `;
 
@@ -288,14 +435,16 @@ const KpiCard = styled.div`
 
 const KpiLabel = styled.div`
   color: #6b7280;
-  font-size: 12px;
-  margin-bottom: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
 `;
 
 const KpiValueRow = styled.div`
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
 `;
 
 const KpiValue = styled.div`

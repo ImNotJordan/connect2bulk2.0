@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Icon } from '@iconify-icon/react';
-import type { Schema } from '../../../../amplify/data/resource';
 import { useAlert } from '../../../components/AlertProvider';
 import { getCurrentUser } from 'aws-amplify/auth';
 import type { AuthUser } from 'aws-amplify/auth';
@@ -410,20 +409,19 @@ const SearchForm = styled.form`
   overflow: hidden;
   background: #fff;
   max-width: 100%;
-  flex-grow: 1;
 `;
 
 const SearchInput = styled.input`
   border: none;
   outline: none;
   padding: 10px 12px;
-  width: 100%;
-  min-width: 200px;
+  width: min(380px, 70vw);
   font-size: 14px;
+  font-family: inherit;
+  background-color: #fff;
   color: #1f2937;
-  &::placeholder {
-    color: #9aa3b2;
-  }
+
+  &::placeholder { color: #9aa3b2; }
 `;
 
 const ClearBtn = styled.button`

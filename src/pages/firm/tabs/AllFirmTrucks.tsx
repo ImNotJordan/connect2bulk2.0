@@ -202,19 +202,6 @@ const AllFirmTrucks: React.FC<Props> = ({
     fetchRows();
   }, [refreshToken]);
 
-  const computeAge = (iso?: string, available?: string): string => {
-    const base = iso || available;
-    if (!base) return '';
-    const d = new Date(base);
-    if (isNaN(d.getTime())) return '';
-    const diffMs = Date.now() - d.getTime();
-    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-    if (diffDays > 0) return `${diffDays}d`;
-    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
-    if (diffHours > 0) return `${diffHours}h`;
-    const diffMins = Math.floor(diffMs / (60 * 1000));
-    return `${Math.max(diffMins, 0)}m`;
-  };
 
   const handleDeleteClick = (id?: string) => {
     if (!id) return;
