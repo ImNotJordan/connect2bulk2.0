@@ -4,7 +4,6 @@ import { Icon } from '@iconify-icon/react';
 import { useLoadContext } from '../../../context/LoadContext';
 import { useAlert } from '../../../components/AlertProvider';
 import { getCurrentUser } from 'aws-amplify/auth';
-import type { Schema } from '../../../../amplify/data/resource';
 
 type Props = {
   loads: any[];
@@ -254,23 +253,6 @@ const MyLoads: React.FC<Props> = ({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  const formatCurrency = useCallback((n?: number) =>
-    typeof n === 'number' && !isNaN(n) ? `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '', []);
-
-  const computeAge = useCallback((iso?: string, pickup?: string) => {
-    const base = iso || pickup;
-    if (!base) return '';
-    const d = new Date(base);
-    if (isNaN(d.getTime())) return '';
-    const diffMs = Date.now() - d.getTime();
-    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-    if (diffDays > 0) return `${diffDays}d`;
-    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
-    if (diffHours > 0) return `${diffHours}h`;
-    const diffMins = Math.floor(diffMs / (60 * 1000));
-    return `${Math.max(diffMins, 0)}m`;
   }, []);
 
   // Format a timestamp into a human-readable relative time (e.g., '5m', '2h', '3d')
@@ -524,25 +506,6 @@ const RightActions = styled.div`
   margin-left: auto; /* push actions to the right */
 `;
 
-const RefreshBtn = styled.button`
-  appearance: none;
-  border: 1px solid rgba(40, 44, 69, 0.16);
-  border-radius: 8px;
-  padding: 9px 12px;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  background: #fff;
-  color: #1f2937;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: background 160ms ease, transform 80ms ease;
-  &:hover { background: #f3f4f6; }
-  &:active { transform: translateY(0.5px); }
-  &:disabled { opacity: 0.6; cursor: not-allowed; }
-  svg { width: 18px; height: 18px; }
-`;
 
 /* Table */
 const TableWrap = styled.div`

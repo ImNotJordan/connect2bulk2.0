@@ -19,7 +19,6 @@ export default AppLayout
 
 // styled-components (kept below the component at module scope per project rules)
 const sidebarWidth = '264px'
-const breakpoint = '768px' // mobile < 768, tablet/desktop >= 768
 const collapsedWidth = '73px'
 
 const Wrapper = styled.div<{ $collapsed: boolean }>`
