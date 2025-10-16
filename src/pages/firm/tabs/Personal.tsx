@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { fetchUserAttributes, updateUserAttributes } from 'aws-amplify/auth';
-import { generateClient } from 'aws-amplify/data';
+import { fetchUserAttributes, updateUserAttributes } from '@aws-amplify/auth';
+import { generateClient } from '@aws-amplify/api';
 import type { Schema } from '../../../../amplify/data/resource';
 import { useAlert } from '../../../components/AlertProvider';
 
