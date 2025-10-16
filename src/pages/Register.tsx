@@ -2,13 +2,10 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { FIRM_TYPES } from './firm/constants';
 import { useNavigate } from 'react-router-dom';
-import { signUp, getCurrentUser } from 'aws-amplify/auth';
-import { useAlert } from '../components/AlertProvider';
-import { get } from 'aws-amplify/api';
+import { signUp } from 'aws-amplify/auth';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
-  const { show: showAlert } = useAlert();
   // Firm fields
   const [firmName, setFirmName] = useState('');
   const [address, setAddress] = useState('');
@@ -20,66 +17,21 @@ const Register: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const [adminEmail, setAdminEmail] = useState('');
-  const checkEmailExists = async (email: string): Promise<boolean> => {
-    try {
-      // Check if email exists in Cognito
-      await getCurrentUser();
-      return true; // If we get here, user exists in Cognito
-    } catch (error) {
-      // Check if user exists in DynamoDB via API
-      try {
-        const response = await get({
-          apiName: 'api',
-          path: `/firms/check-email?email=${encodeURIComponent(email)}`
-        }).response;
-        
-        const data = await response.body.json() as { exists: boolean };
-        return data.exists;
-      } catch (dbError) {
-        console.error('Error checking email in DynamoDB:', dbError);
-        // If we can't verify, assume email exists to prevent duplicates
-        return true;
-      }
-    }
-  };
-
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const email = adminEmail.trim();
-    if (!email) {
-      alert('Please enter a valid email address');
-      return;
-    }
-
     setSubmitting(true);
-    
+    const payload = {
+      firm_name: firmName,
+      address,
+      administrator_email: adminEmail,
+      state: stateCode,
+      zip,
+      firm_type: firmType,
+      load_posts: loadPosts === '' ? 0 : Number(loadPosts),
+      truck_posts: truckPosts === '' ? 0 : Number(truckPosts),
+    } as const;
     try {
-      // Check if email already exists
-      const emailExists = await checkEmailExists(email);
-      if (emailExists) {
-        showAlert({
-          variant: 'error',
-          title: 'Email Exists',
-          message: 'An account with this email already exists. Please use a different email or log in.',
-          autoClose: true,
-          autoCloseDuration: 5000
-        });
-        setSubmitting(false);
-        return;
-      }
-
-      const payload = {
-        firm_name: firmName,
-        address,
-        administrator_email: email,
-        state: stateCode,
-        zip,
-        firm_type: firmType,
-        load_posts: loadPosts === '' ? 0 : Number(loadPosts),
-        truck_posts: truckPosts === '' ? 0 : Number(truckPosts),
-      } as const;
-
+      const email = adminEmail.trim();
       const tmpPwd = `Tmp!${Math.random().toString(36).slice(-8)}A1`;
       // Persist temp password and firm payload for the verification step
       sessionStorage.setItem(`tmpPwd:${email}`, tmpPwd);
@@ -88,32 +40,14 @@ const Register: React.FC = () => {
       await signUp({
         username: email,
         password: tmpPwd,
-        options: { 
-          userAttributes: { 
-            email,
-            'custom:roles': 'MEMBER' 
-          } 
-        },
+        options: { userAttributes: { email } },
       });
 
-      showAlert({
-        variant: 'success',
-        title: 'Verification Sent',
-        message: 'We sent a 6-digit verification code to your email.',
-        autoClose: true,
-        autoCloseDuration: 5000
-      });
+      alert('We sent a 6-digit verification code to your email.');
       navigate(`/verify?email=${encodeURIComponent(email)}`);
     } catch (err) {
       console.error('Registration error:', err);
-      const errorMessage = (err as any)?.message ?? 'Registration failed';
-      showAlert({
-        variant: 'error',
-        title: 'Registration Error',
-        message: errorMessage,
-        autoClose: true,
-        autoCloseDuration: 5000
-      });
+      alert((err as any)?.message ?? 'Registration failed');
     } finally {
       setSubmitting(false);
     }
