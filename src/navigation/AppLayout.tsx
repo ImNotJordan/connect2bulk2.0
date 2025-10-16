@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import styled from 'styled-components'
 import Sidebar from './Sidebar'
+import { Icon } from '@iconify-icon/react'
 
 const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false)
@@ -9,7 +10,28 @@ const AppLayout: React.FC = () => {
     <Wrapper $collapsed={collapsed}>
       <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
       <Main $collapsed={collapsed}>
-        <Outlet />
+        <GlobalTopbar>
+          <QuickCreateButton type="button">
+            <Icon icon="lucide:plus" className="icon" aria-hidden="true" />
+            <span>Quick Create</span>
+          </QuickCreateButton>
+          <SearchWrapper role="search">
+            <Icon icon="lucide:search" className="icon" aria-hidden="true" />
+            <SearchInput type="search" placeholder="Search..." aria-label="Global search" />
+          </SearchWrapper>
+          <TopbarActions>
+            <IconButton type="button" aria-label="Open notifications">
+              <Icon icon="mdi:bell-outline" className="icon" aria-hidden="true" />
+            </IconButton>
+            <IconButton type="button" aria-label="Open AI command bar" $withLabel>
+              <Icon icon="mdi:robot-outline" className="icon" aria-hidden="true" />
+              <span>AI Command Bar</span>
+            </IconButton>
+          </TopbarActions>
+        </GlobalTopbar>
+        <Content>
+          <Outlet />
+        </Content>
       </Main>
     </Wrapper>
   )
@@ -42,7 +64,130 @@ const Main = styled.main<{ $collapsed: boolean }>`
   z-index: 0;
   margin: 0;
   margin-left: ${(p) => (p.$collapsed ? collapsedWidth : sidebarWidth)};
+  display: flex;
+  flex-direction: column;
   
   /* Keep page from introducing horizontal scroll while allowing the fixed tab to overlay */
   overflow-x: hidden;
+`
+
+const GlobalTopbar = styled.header`
+  display: grid;
+  grid-template-columns: auto minmax(240px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  padding-left: 48px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  backdrop-filter: saturate(120%) blur(8px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+`
+
+const QuickCreateButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #dc143c, #a00e2b);
+  color: #f8fafc;
+  font-weight: 600;
+  font-size: 14px;
+  transition: transform 120ms ease, box-shadow 160ms ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 25px rgba(220, 20, 60, 0.35);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 6px 16px rgba(220, 20, 60, 0.28);
+  }
+
+  .icon {
+    width: 18px;
+    height: 18px;
+  }
+`
+
+const SearchWrapper = styled.form`
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.35);
+  border-radius: 12px;
+  padding: 10px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: #cbd5e1;
+
+  .icon {
+    width: 20px;
+    height: 20px;
+  }
+`
+
+const SearchInput = styled.input`
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f8fafc;
+  font-size: 14px;
+  width: 100%;
+
+  &::placeholder {
+    color: #94a3b8;
+  }
+`
+
+const TopbarActions = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+`
+
+const IconButton = styled.button<{ $withLabel?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: ${(p) => (p.$withLabel ? '8px' : '0')};
+  justify-content: center;
+  padding: ${(p) => (p.$withLabel ? '10px 16px' : '10px')};
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: rgba(15, 23, 42, 0.35);
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 160ms ease, transform 120ms ease, box-shadow 160ms ease;
+
+  &:hover {
+    background: rgba(220, 20, 60, 0.25);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.35);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.3);
+  }
+
+  .icon {
+    width: 18px;
+    height: 18px;
+  }
+`
+
+const Content = styled.div`
+  flex: 1;
+  width: 100%;
+  padding: 24px;
+  box-sizing: border-box;
 `

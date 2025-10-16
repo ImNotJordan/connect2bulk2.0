@@ -124,10 +124,21 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   const navItems = useMemo(() => {
     const items = [
       { label: 'Dashboard', to: '/firm', end: true, icon: 'lucide:layout-dashboard' },
-      { label: 'Load Board', to: '/firm/load-board', icon: 'mdi:package-variant-closed' },
+      { label: 'Analytics', to: '/firm/analytics', icon: 'mdi:chart-bar' },
+      { label: 'Loads', to: '/firm/load-board', icon: 'mdi:package-variant-closed' },
       { label: 'Truck Board', to: '/firm/truck-board', icon: 'mdi:truck-outline' },
+      { label: 'Tracking', to: '/firm/tracking', icon: 'mdi:radar' },
+      { label: 'Carriers/Brokers', to: '/firm/carriers-brokers', icon: 'mdi:account-multiple' },
+      { label: 'Bidding', to: '/firm/bidding', icon: 'mdi:gavel' },
+      { label: 'RFPs', to: '/firm/rfps', icon: 'mdi:file-document-multiple' },
+      { label: 'Quotes', to: '/firm/quotes', icon: 'mdi:receipt-text' },
+      { label: 'CRM', to: '/firm/crm', icon: 'mdi:account-group-outline' },
+      { label: 'Comms', to: '/firm/comms', icon: 'mdi:message-outline' },
+      { label: 'Accounting', to: '/firm/accounting', icon: 'mdi:calculator-variant-outline' },
+      { label: 'Risk Models', to: '/firm/risk-models', icon: 'mdi:chart-line' },
       { label: 'Search', to: '/firm/search', icon: 'mdi:magnify' },
       { label: 'Notifications', to: '/firm/notifications', icon: 'mdi:bell-outline' },
+      { label: 'Settings', to: '/firm/settings', icon: 'mdi:cog-outline' },
       { label: 'Admin', to: '/firm/admin', icon: 'mdi:shield-account' },
       { label: 'Profile', to: '/firm/profile', icon: 'mdi:account-circle-outline' },
     ]
