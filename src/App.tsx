@@ -12,6 +12,8 @@ import Search from './pages/firm/Search'
 import Profile from './pages/firm/Profile'
 import Notifications from './pages/firm/Notifications'
 import BusinessProfilePage from './pages/firm/BusinessProfile'
+import Settings from './pages/firm/Settings'
+import UnderConstruction from './pages/firm/UnderConstruction'
 import ResetPassword from './pages/ResetPassword'
 import { fetchAuthSession } from 'aws-amplify/auth'
 import AppLayout from './navigation/AppLayout'
@@ -122,6 +124,17 @@ function App() {
           <Route path="/firm/notifications" element={<Notifications />} />
           <Route path="/firm/profile" element={<Profile />} />
           <Route path="/firm/business-profile" element={<BusinessProfilePage />} />
+          <Route path="/firm/settings" element={<Settings />} />
+          <Route path="/firm/bidding" element={<UnderConstruction title="Bidding" />} />
+          <Route path="/firm/risk-models" element={<UnderConstruction title="Risk Models" />} />
+          <Route path="/firm/rfps" element={<UnderConstruction title="RFPs" />} />
+          <Route path="/firm/quotes" element={<UnderConstruction title="Quotes" />} />
+          <Route path="/firm/analytics" element={<UnderConstruction title="Analytics" />} />
+          <Route path="/firm/carriers-brokers" element={<UnderConstruction title="Carriers/Brokers" />} />
+          <Route path="/firm/tracking" element={<UnderConstruction title="Tracking" />} />
+          <Route path="/firm/communications" element={<UnderConstruction title="Communications" />} />
+          <Route path="/firm/accounting" element={<UnderConstruction title="Accounting" />} />
+          <Route path="/firm/crm" element={<UnderConstruction title="CRM" />} />
         </Route>
       </Routes>
     </LoadProvider>

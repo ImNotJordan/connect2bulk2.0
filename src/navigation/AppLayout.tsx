@@ -10,7 +10,7 @@ const AppLayout: React.FC = () => {
     <Wrapper $collapsed={collapsed}>
       <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
       <Main $collapsed={collapsed}>
-        <GlobalTopbar>
+        <GlobalTopbar $collapsed={collapsed}>
           <QuickCreateButton type="button">
             <Icon icon="lucide:plus" className="icon" aria-hidden="true" />
             <span>Quick Create</span>
@@ -42,6 +42,8 @@ export default AppLayout
 // styled-components (kept below the component at module scope per project rules)
 const sidebarWidth = '264px'
 const collapsedWidth = '73px'
+const breakpoint = '768px'
+const topbarHeight = '80px'
 
 const Wrapper = styled.div<{ $collapsed: boolean }>`
   display: block;
@@ -60,6 +62,7 @@ const Main = styled.main<{ $collapsed: boolean }>`
   min-width: 0;
   min-height: 100dvh;
   padding: 0;
+  padding-top: ${topbarHeight};
   position: relative; /* create a local stacking context below the tab */
   z-index: 0;
   margin: 0;
@@ -71,7 +74,7 @@ const Main = styled.main<{ $collapsed: boolean }>`
   overflow-x: hidden;
 `
 
-const GlobalTopbar = styled.header`
+const GlobalTopbar = styled.header<{ $collapsed: boolean }>`
   display: grid;
   grid-template-columns: auto minmax(240px, 1fr) auto;
   align-items: center;
@@ -80,11 +83,20 @@ const GlobalTopbar = styled.header`
   padding-left: 48px;
   background: rgba(15, 23, 42, 0.92);
   color: #e2e8f0;
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 5;
+  left: ${(p) => (p.$collapsed ? collapsedWidth : sidebarWidth)};
+  width: calc(100dvw - ${(p) => (p.$collapsed ? collapsedWidth : sidebarWidth)});
+  min-height: ${topbarHeight};
+  box-sizing: border-box;
+  z-index: 50;
   backdrop-filter: saturate(120%) blur(8px);
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+
+  @media (max-width: ${breakpoint}) {
+    left: 0;
+    width: 100dvw;
+  }
 `
 
 const QuickCreateButton = styled.button`
@@ -188,6 +200,6 @@ const IconButton = styled.button<{ $withLabel?: boolean }>`
 const Content = styled.div`
   flex: 1;
   width: 100%;
-  padding: 24px;
+  padding: 0;
   box-sizing: border-box;
 `
