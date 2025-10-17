@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../../amplify/data/resource';
 import { signUp, resetPassword, getCurrentUser, updateUserAttributes, fetchAuthSession } from 'aws-amplify/auth';
-import { AdminUpdateUserAttributesCommand, CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
+import { AdminUpdateUserAttributesCommand, CognitoIdentityProviderClient, ListUsersCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { useAlert } from '../../../components/AlertProvider';
 import outputs from '../../../../amplify_outputs.json';
 
@@ -74,82 +74,59 @@ const ManageUsers: React.FC = () => {
   }, []);
 
   // Helper function to get user attributes from Cognito
-  const fetchUserAttributes = async (email: string): Promise<{ role: string; phone?: string }> => {
-    try {
-      const { fetchUserAttributes } = await import('aws-amplify/auth');
-      // This assumes you have a way to fetch attributes for a specific user
-      // In a real app, you might need a backend API to fetch other users' attributes
-      // For now, we'll just return the current user's attributes if the email matches
-      const currentUser = await getCurrentUser();
-      if (currentUser.signInDetails?.loginId === email) {
-        const attributes = await fetchUserAttributes();
-        return {
-          role: attributes['custom:roles'] || '',
-          phone: attributes.phone_number || undefined
-        };
-      }
-      return { role: '' };
-    } catch (error) {
-      console.error('Error fetching user attributes from Cognito:', error);
-      return { role: '' };
-    }
-  };
 
   const loadUsers = async () => {
     setLoading(true);
     try {
-      let userList: any[] = [];
+      // Get the current user's session
+      const session = await fetchAuthSession();
+      const accessToken = session.tokens?.accessToken?.toString();
       
-      // Try User Pool first
-      try {
-        const { data, errors } = await client.models.User.list({ authMode: 'userPool' } as any);
-        if (errors?.length) throw new Error(errors.map(e => e.message).join(', '));
-        userList = data as any[];
-      } catch (err: any) {
-        // Fallback to Identity Pool (IAM) if userPool fails due to auth
-        const msg = String(err?.message ?? err);
-        const isAuth = /Not Authorized/i.test(msg) || /Unauthorized/i.test(msg);
-        const isEnumSerialize = /serialize value|Invalid input for Enum/i.test(msg);
-        if (isAuth) {
-          try {
-            const { data, errors } = await client.models.User.list({ authMode: 'identityPool' } as any);
-            if (errors?.length) throw new Error(errors.map(e => e.message).join(', '));
-            userList = data as any[];
-          } catch (err2: any) {
-            const msg2 = String(err2?.message ?? err2);
-            if (/serialize value|Invalid input for Enum/i.test(msg2)) {
-              // Fallback: exclude role from selection set to avoid enum serialization issues
-              const { data } = await (client.models.User.list as any)({ selectionSet: ['id','first_name','last_name','email','phone'], authMode: 'identityPool' });
-              userList = data as any[];
-            } else {
-              throw err2;
-            }
-          }
-        } else if (isEnumSerialize) {
-          // Fallback: exclude role from selection set to avoid enum serialization issues
-          const { data } = await (client.models.User.list as any)({ selectionSet: ['id','first_name','last_name','email','phone'], authMode: 'userPool' });
-          userList = data as any[];
-        } else {
-          throw err;
-        }
+      if (!accessToken) {
+        throw new Error('Not authenticated');
       }
 
-      // Fetch user attributes from Cognito for each user
-      const usersWithAttributes = await Promise.all(
-        userList.map(async (user) => {
-          if (user.email) {
-            const { role, phone } = await fetchUserAttributes(user.email);
-            return { 
-              ...user, 
-              role: role || user.role,
-              phone: phone || user.phone // Use Cognito phone number if available, fallback to existing
-            };
-          }
-          return user;
-        })
-      );
+      // Call the ListUsers API using the AWS SDK
+      const client = new CognitoIdentityProviderClient({
+        region: outputs.auth.aws_region || 'us-east-1',
+        credentials: session.credentials
+      });
 
-      setUsers(usersWithAttributes);
+      const command = new ListUsersCommand({
+        UserPoolId: outputs.auth.user_pool_id,
+        Limit: 60
+      });
+
+      const response = await client.send(command);
+      
+      if (!response.Users) {
+        throw new Error('No users found');
+      }
+      
+      // Transform Cognito users to match the expected format
+      const cognitoUsers = response.Users.map(user => {
+        const attributes = (user.Attributes || []).reduce((acc: Record<string, string>, attr: any) => {
+          if (attr.Name && attr.Value) {
+            acc[attr.Name] = attr.Value;
+          }
+          return acc;
+        }, {} as Record<string, string>);
+
+        return {
+          id: user.Username || '',
+          first_name: attributes.given_name || '',
+          last_name: attributes.family_name || '',
+          email: attributes.email || '',
+          phone: attributes.phone_number || '',
+          role: attributes['custom:roles'] || 'MEMBER',
+          createdAt: user.UserCreateDate ? new Date(user.UserCreateDate).toISOString() : '',
+          updatedAt: user.UserLastModifiedDate ? new Date(user.UserLastModifiedDate).toISOString() : '',
+          status: user.UserStatus || '',
+          enabled: user.Enabled
+        };
+      });
+
+      setUsers(cognitoUsers);
     } catch (e: any) {
       console.error('Failed to load users:', e);
       alertApi.error({ title: 'Failed to load users', message: e?.message ?? 'Please try again.' });

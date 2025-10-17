@@ -20,27 +20,40 @@ const Register: React.FC = () => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    const payload = {
-      firm_name: firmName,
-      address,
-      administrator_email: adminEmail,
-      state: stateCode,
-      zip,
-      firm_type: firmType,
-      load_posts: loadPosts === '' ? 0 : Number(loadPosts),
-      truck_posts: truckPosts === '' ? 0 : Number(truckPosts),
-    } as const;
+    
     try {
       const email = adminEmail.trim();
       const tmpPwd = `Tmp!${Math.random().toString(36).slice(-8)}A1`;
-      // Persist temp password and firm payload for the verification step
+      
       sessionStorage.setItem(`tmpPwd:${email}`, tmpPwd);
-      sessionStorage.setItem(`pendingFirm:${email}`, JSON.stringify(payload));
+      sessionStorage.setItem(`pendingFirm:${email}`, JSON.stringify({
+        firm_name: firmName,
+        address,
+        administrator_email: adminEmail,
+        state: stateCode,
+        zip,
+        firm_type: firmType,
+        load_posts: loadPosts === '' ? 0 : Number(loadPosts),
+        truck_posts: truckPosts === '' ? 0 : Number(truckPosts),
+      }));
 
       await signUp({
         username: email,
         password: tmpPwd,
-        options: { userAttributes: { email } },
+        options: {
+          userAttributes: { 
+            email,
+            'custom:firm_name': firmName,
+            'custom:address': address,
+            'custom:state': stateCode,
+            'custom:zip': zip,
+            'custom:firm_type': firmType,
+            'custom:load_posts': loadPosts === '' ? '0' : loadPosts.toString(),
+            'custom:truck_posts': truckPosts === '' ? '0' : truckPosts.toString(),
+            'custom:registration_status': 'pending_verification'
+          },
+          autoSignIn: false
+        },
       });
 
       alert('We sent a 6-digit verification code to your email.');

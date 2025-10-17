@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "connect2bulk",
   "private": true,
   "version": "0.0.0",
@@ -13,7 +14,7 @@
   "dependencies": {
     "@aws-amplify/ui-react": "^6.11.2",
     "@aws-sdk/client-cognito-identity-provider": "^3.908.0",
-    "@aws-sdk/client-dynamodb": "^3.902.0",
+    "@aws-sdk/client-dynamodb": "^3.902.0", 
     "@aws-sdk/client-ses": "^3.600.0",
     "@aws-sdk/lib-dynamodb": "^3.902.0",
     "chart.js": "^4.5.0",
