@@ -1,21 +1,32 @@
-import React, { useEffect, useState } from 'react'
-import './App.css'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import EmailVerification from './pages/EmailVerification'
-import Dashboard from './pages/firm/Dashboard'
-import LoadBoard from './pages/firm/LoadBoard'
-import TruckBoard from './pages/firm/TruckBoard'
-import AdminConsole from './pages/firm/AdminConsole'
-import Search from './pages/firm/Search'
-import Profile from './pages/firm/Profile'
-import Notifications from './pages/firm/Notifications'
-import BusinessProfilePage from './pages/firm/BusinessProfile'
-import ResetPassword from './pages/ResetPassword'
-import { fetchAuthSession } from 'aws-amplify/auth'
-import AppLayout from './navigation/AppLayout'
-import { LoadProvider } from './context/LoadContext'
+import { useEffect, useState } from 'react';
+import './App.css';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { fetchAuthSession } from 'aws-amplify/auth';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import EmailVerification from './pages/EmailVerification';
+import Dashboard from './pages/firm/Dashboard';
+import LoadBoard from './pages/firm/LoadBoard';
+import TruckBoard from './pages/firm/TruckBoard';
+import AdminConsole from './pages/firm/AdminConsole';
+import Search from './pages/firm/Search';
+import Profile from './pages/firm/Profile';
+import Notifications from './pages/firm/Notifications';
+import BusinessProfilePage from './pages/firm/BusinessProfile';
+import ResetPassword from './pages/ResetPassword';
+import AppLayout from './navigation/AppLayout';
+import { LoadProvider } from './context/LoadContext';
+import withAuth from './hocs/withAuth';
+
+// Create authenticated versions of the components
+const AuthenticatedDashboard = withAuth(Dashboard);
+const AuthenticatedLoadBoard = withAuth(LoadBoard);
+const AuthenticatedTruckBoard = withAuth(TruckBoard);
+const AuthenticatedAdminConsole = withAuth(AdminConsole);
+const AuthenticatedSearch = withAuth(Search);
+const AuthenticatedProfile = withAuth(Profile);
+const AuthenticatedNotifications = withAuth(Notifications);
+const AuthenticatedBusinessProfile = withAuth(BusinessProfilePage);
 
 // Redirect to dashboard if already signed in
 function RedirectIfSignedIn({ children }: { children: React.ReactElement }) {
@@ -108,20 +119,21 @@ function App() {
 
         {/* Protected routes with sidebar layout */}
         <Route
+          path="/firm"
           element={
             <RequireAuth>
               <AppLayout />
             </RequireAuth>
           }
         >
-          <Route path="/firm" element={<Dashboard />} />
-          <Route path="/firm/load-board" element={<LoadBoard />} />
-          <Route path="/firm/truck-board" element={<TruckBoard />} />
-          <Route path="/firm/admin" element={<AdminConsole />} />
-          <Route path="/firm/search" element={<Search />} />
-          <Route path="/firm/notifications" element={<Notifications />} />
-          <Route path="/firm/profile" element={<Profile />} />
-          <Route path="/firm/business-profile" element={<BusinessProfilePage />} />
+          <Route index element={<AuthenticatedDashboard />} />
+          <Route path="load-board" element={<AuthenticatedLoadBoard />} />
+          <Route path="truck-board" element={<AuthenticatedTruckBoard />} />
+          <Route path="admin" element={<AuthenticatedAdminConsole />} />
+          <Route path="search" element={<AuthenticatedSearch />} />
+          <Route path="notifications" element={<AuthenticatedNotifications />} />
+          <Route path="profile" element={<AuthenticatedProfile />} />
+          <Route path="business-profile" element={<AuthenticatedBusinessProfile />} />
         </Route>
       </Routes>
     </LoadProvider>
