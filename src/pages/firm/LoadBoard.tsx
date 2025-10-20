@@ -114,7 +114,7 @@ const LoadBoard: React.FC = () => {
     setForm({ ...defaultForm });
   };
 
-  // Fetch loads when component mounts
+  // Fetch loads from backend
   const fetchLoads = async () => {
     try {
       setLoading(true);
@@ -131,6 +131,21 @@ const LoadBoard: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Set up interval for auto-refresh
+  useEffect(() => {
+    // Initial fetch
+    fetchLoads();
+    
+    // Set up interval to fetch every minute (60000ms)
+    const intervalId = setInterval(() => {
+      console.log('Auto-refreshing loads...');
+      fetchLoads();
+    }, 60000);
+
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [refreshToken]); // Re-run effect if refreshToken changes
 
   // Delete a load by ID
   const handleDeleteLoad = async (loadId: string): Promise<void> => {
@@ -352,6 +367,7 @@ const LoadBoard: React.FC = () => {
       const payload: any = {
         load_number: form.load_number.trim(),
         sent_by: userEmail,
+        owner: user.username, // Add owner field with the current user's username
         pickup_date: form.pickup_date.trim(),
         delivery_date: form.delivery_date.trim() || null,
         origin: form.origin.trim(),
@@ -399,6 +415,7 @@ const LoadBoard: React.FC = () => {
             frequency: payload.frequency,
             comment: payload.comment,
             created_at: payload.created_at,
+            sent_by: userEmail, // Using sent_by instead of owner as per schema
           });
           console.log('7. Backend response:', result);
 
@@ -476,11 +493,14 @@ const LoadBoard: React.FC = () => {
             {
               id: "my",
               label: "My Loads",
-              content: <MyLoads 
-                loads={[]} 
-                onAddNewLoad={() => {}}
-                onDeleteLoad={async () => {}}
-              />,
+              content: (
+                <MyLoads 
+                  loads={loads}
+                  onAddNewLoad={() => setAddOpen(true)}
+                  onDeleteLoad={handleDeleteLoad}
+                  deletingId={loading ? 'deleting' : undefined}
+                />
+              ),
             },
           ]}
           brand={
