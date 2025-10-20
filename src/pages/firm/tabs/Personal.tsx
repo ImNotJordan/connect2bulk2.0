@@ -44,6 +44,7 @@ const Personal: React.FC = () => {
   const [dragActive, setDragActive] = useState(false);
   const [avatarError, setAvatarError] = useState<string>('');
   const [uploading, setUploading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string>(''); // Separate state for preview
 
   const [saving, setSaving] = useState(false);
 
@@ -301,9 +302,9 @@ const Personal: React.FC = () => {
     
     setAvatarError('');
     
-    // Create a local blob URL for immediate preview
+    // Create a local blob URL for immediate preview (don't save to form yet)
     const blobUrl = URL.createObjectURL(file);
-    setForm((prev) => ({ ...prev, avatarUrl: blobUrl }));
+    setAvatarPreview(blobUrl);
     
     setUploading(true);
     
@@ -335,8 +336,9 @@ const Personal: React.FC = () => {
       
       // Clean up the blob URL to free memory
       URL.revokeObjectURL(blobUrl);
+      setAvatarPreview(''); // Clear preview
       
-      // Update form with the S3 URL
+      // Update form with the S3 URL (this will be saved to Cognito)
       setForm((prev) => ({ ...prev, avatarUrl: s3Url }));
       
       alertApi.info({
@@ -352,7 +354,7 @@ const Personal: React.FC = () => {
       
       // Revert to no image on error
       URL.revokeObjectURL(blobUrl);
-      setForm((prev) => ({ ...prev, avatarUrl: '' }));
+      setAvatarPreview('');
       
       alertApi.warning({
         title: 'Upload Failed',
@@ -614,7 +616,7 @@ const Personal: React.FC = () => {
 
         <AvatarRow>
           <AvatarPreview
-            $src={form.avatarUrl}
+            $src={avatarPreview || form.avatarUrl}
             $editable={editing}
             $dragActive={dragActive}
             onDragEnter={editing ? onAvatarDragEnter : undefined}
