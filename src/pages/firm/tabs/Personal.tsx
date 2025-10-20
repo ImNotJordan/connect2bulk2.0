@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { fetchUserAttributes, updateUserAttributes } from '@aws-amplify/auth';
 import { generateClient } from '@aws-amplify/api';
+import { uploadData, getUrl } from 'aws-amplify/storage';
 import type { Schema } from '../../../../amplify/data/resource';
 import { useAlert } from '../../../components/AlertProvider';
-
 
 const COUNTRY_OPTIONS = [
   { iso2: 'US', name: 'United States', dial: '+1' },
@@ -43,6 +43,7 @@ const Personal: React.FC = () => {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [avatarError, setAvatarError] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
 
   const [saving, setSaving] = useState(false);
 
@@ -285,14 +286,84 @@ const Personal: React.FC = () => {
     return `+${withCC}`;
   };
 
-  const onFileSelected = (file: File) => {
+  const onFileSelected = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setAvatarError('Please upload an image file (PNG or JPG).');
       return;
     }
+    
+    // Check file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      setAvatarError('File size must be less than 5MB.');
+      return;
+    }
+    
     setAvatarError('');
-    const url = URL.createObjectURL(file);
-    setForm((prev) => ({ ...prev, avatarUrl: url }));
+    
+    // Create a local blob URL for immediate preview
+    const blobUrl = URL.createObjectURL(file);
+    setForm((prev) => ({ ...prev, avatarUrl: blobUrl }));
+    
+    setUploading(true);
+    
+    try {
+      // Generate a unique filename with timestamp
+      const timestamp = Date.now();
+      const fileName = `avatars/${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      
+      console.log('Uploading image to S3:', fileName);
+      
+      // Upload to S3
+      const result = await uploadData({
+        path: fileName,
+        data: file,
+        options: {
+          contentType: file.type,
+        }
+      }).result;
+      
+      console.log('Upload successful:', result);
+      
+      // Get the S3 URL for display
+      const urlResult = await getUrl({
+        path: fileName,
+      });
+      
+      const s3Url = urlResult.url.toString();
+      console.log('S3 URL:', s3Url);
+      
+      // Clean up the blob URL to free memory
+      URL.revokeObjectURL(blobUrl);
+      
+      // Update form with the S3 URL
+      setForm((prev) => ({ ...prev, avatarUrl: s3Url }));
+      
+      alertApi.info({
+        title: 'Success',
+        message: 'Image uploaded successfully!',
+        autoClose: true,
+        autoCloseDuration: 3000,
+        position: 'top-right',
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setAvatarError('Failed to upload image. Please try again.');
+      
+      // Revert to no image on error
+      URL.revokeObjectURL(blobUrl);
+      setForm((prev) => ({ ...prev, avatarUrl: '' }));
+      
+      alertApi.warning({
+        title: 'Upload Failed',
+        message: 'Failed to upload image to S3. Please try again.',
+        autoClose: true,
+        autoCloseDuration: 5000,
+        position: 'top-right',
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   const onAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -555,8 +626,10 @@ const Personal: React.FC = () => {
           {editing && (
             <div>
               <Label htmlFor="avatar">Avatar</Label>
-              <Input id="avatar" type="file" accept="image/*" onChange={onAvatarChange} />
-              <HelpText>PNG or JPG. Drag & drop supported.</HelpText>
+              <Input id="avatar" type="file" accept="image/*" onChange={onAvatarChange} disabled={uploading} />
+              <HelpText>
+                {uploading ? 'Uploading to S3...' : 'PNG or JPG (max 5MB). Drag & drop supported.'}
+              </HelpText>
               {avatarError && <ErrorText role="alert">{avatarError}</ErrorText>}
             </div>
           )}
