@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { fetchUserAttributes, updateUserAttributes } from '@aws-amplify/auth';
+import { fetchUserAttributes, updateUserAttributes, getCurrentUser } from '@aws-amplify/auth';
 import { generateClient } from '@aws-amplify/api';
 import { uploadData, getUrl } from 'aws-amplify/storage';
 import type { Schema } from '../../../../amplify/data/resource';
@@ -48,6 +48,32 @@ const Personal: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
 
+  // Generate display URL from S3 key
+  useEffect(() => {
+    if (!form.avatarUrl || form.avatarUrl.startsWith('http') || form.avatarUrl.startsWith('blob:')) {
+      // Already a URL or blob, no need to fetch
+      return;
+    }
+
+    // If it's an S3 key (e.g., "avatars/123456-image.jpg"), generate a signed URL
+    let mounted = true;
+    (async () => {
+      try {
+        const urlResult = await getUrl({
+          path: form.avatarUrl,
+        });
+        if (mounted) {
+          setAvatarPreview(urlResult.url.toString());
+        }
+      } catch (error) {
+        console.error('Error generating avatar URL:', error);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [form.avatarUrl]);
 
   useEffect(() => {
     let mounted = true;
@@ -309,9 +335,12 @@ const Personal: React.FC = () => {
     setUploading(true);
     
     try {
-      // Generate a unique filename with timestamp
-      const timestamp = Date.now();
-      const fileName = `avatars/${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      // Get the current user ID
+      const { userId } = await getCurrentUser();
+      
+      // Generate filename with user ID
+      const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `avatars/${userId}-${sanitizedFileName}`;
       
       console.log('Uploading image to S3:', fileName);
       
@@ -326,20 +355,15 @@ const Personal: React.FC = () => {
       
       console.log('Upload successful:', result);
       
-      // Get the S3 URL for display
-      const urlResult = await getUrl({
-        path: fileName,
-      });
-      
-      const s3Url = urlResult.url.toString();
-      console.log('S3 URL:', s3Url);
+      // Store the S3 key/path (not the temporary signed URL)
+      console.log('S3 Key:', fileName);
       
       // Clean up the blob URL to free memory
       URL.revokeObjectURL(blobUrl);
       setAvatarPreview(''); // Clear preview
       
-      // Update form with the S3 URL (this will be saved to Cognito)
-      setForm((prev) => ({ ...prev, avatarUrl: s3Url }));
+      // Update form with the S3 key (this will be saved to Cognito)
+      setForm((prev) => ({ ...prev, avatarUrl: fileName }));
       
       alertApi.info({
         title: 'Success',
