@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import styled from 'styled-components'
 import Sidebar from './Sidebar'
@@ -6,15 +6,76 @@ import { Icon } from '@iconify-icon/react'
 
 const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false)
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false)
+  const quickCreateRef = useRef<HTMLDivElement | null>(null)
+  const quickCreateOptions = [
+    { label: 'Quote', icon: 'lucide:file-text' },
+    { label: 'Load', icon: 'lucide:truck' },
+    { label: 'RFP', icon: 'lucide:file-input' },
+    { label: 'Carrier', icon: 'lucide:users' },
+    { label: 'Contact', icon: 'lucide:user-plus' }
+  ]
+
+  useEffect(() => {
+    if (!quickCreateOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!quickCreateRef.current) return
+      if (!quickCreateRef.current.contains(event.target as Node)) {
+        setQuickCreateOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setQuickCreateOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [quickCreateOpen])
+
+  const handleQuickCreateToggle = () => {
+    setQuickCreateOpen((open) => !open)
+  }
+
+  const handleQuickCreateSelect = () => {
+    setQuickCreateOpen(false)
+  }
   return (
     <Wrapper $collapsed={collapsed}>
       <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
       <Main $collapsed={collapsed}>
         <GlobalTopbar $collapsed={collapsed}>
-          <QuickCreateButton type="button">
-            <Icon icon="lucide:plus" className="icon" aria-hidden="true" />
-            <span>Quick Create</span>
-          </QuickCreateButton>
+          <QuickCreateWrapper ref={quickCreateRef}>
+            <QuickCreateButton
+              type="button"
+              onClick={handleQuickCreateToggle}
+              aria-haspopup="menu"
+              aria-expanded={quickCreateOpen}
+            >
+              <Icon icon="lucide:plus" className="icon" aria-hidden="true" />
+              <span>Quick Create</span>
+            </QuickCreateButton>
+            {quickCreateOpen && (
+              <QuickCreateMenu role="menu">
+                {quickCreateOptions.map(({ label, icon }) => (
+                  <QuickCreateMenuItem key={label}>
+                    <QuickCreateMenuButton type="button" role="menuitem" onClick={handleQuickCreateSelect}>
+                      <Icon icon={icon} className="icon" aria-hidden="true" />
+                      <span>{label}</span>
+                    </QuickCreateMenuButton>
+                  </QuickCreateMenuItem>
+                ))}
+              </QuickCreateMenu>
+            )}
+          </QuickCreateWrapper>
           <SearchWrapper role="search">
             <Icon icon="lucide:search" className="icon" aria-hidden="true" />
             <SearchInput type="search" placeholder="Search..." aria-label="Global search" />
@@ -97,6 +158,65 @@ const GlobalTopbar = styled.header<{ $collapsed: boolean }>`
     left: 0;
     width: 100dvw;
   }
+`
+
+const QuickCreateMenu = styled.ul`
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 100%;
+  padding: 8px;
+  margin: 0;
+  list-style: none;
+  background: rgba(15, 23, 42, 0.96);
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.45);
+  z-index: 60;
+`
+
+const QuickCreateMenuItem = styled.li`
+  width: 100%;
+`
+
+const QuickCreateMenuButton = styled.button`
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 160ms ease, transform 120ms ease;
+
+  &:hover {
+    background: rgba(220, 20, 60, 0.2);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    background: rgba(220, 20, 60, 0.28);
+    transform: translateY(0);
+  }
+
+  .icon {
+    font-size: 18px;
+  }
+`
+
+const QuickCreateWrapper = styled.div`
+  position: relative;
+  display: inline-flex;
 `
 
 const QuickCreateButton = styled.button`
