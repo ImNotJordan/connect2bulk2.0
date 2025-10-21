@@ -18,6 +18,7 @@ import ResetPassword from './pages/ResetPassword'
 import { fetchAuthSession } from 'aws-amplify/auth'
 import AppLayout from './navigation/AppLayout'
 import { LoadProvider } from './context/LoadContext'
+import { SearchProvider } from './contexts/SearchContext'
 
 // Redirect to dashboard if already signed in
 function RedirectIfSignedIn({ children }: { children: React.ReactElement }) {
@@ -71,8 +72,9 @@ function RequireAuth({ children }: { children: React.ReactElement }) {
 function App() {
   // No additional styling needed here; each page styles itself.
   return (
-    <LoadProvider>
-      <Routes>
+    <SearchProvider>
+      <LoadProvider>
+        <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         {/* Auth routes (no sidebar) */}
         <Route
@@ -136,8 +138,9 @@ function App() {
           <Route path="/firm/accounting" element={<UnderConstruction title="Accounting" />} />
           <Route path="/firm/crm" element={<UnderConstruction title="CRM" />} />
         </Route>
-      </Routes>
-    </LoadProvider>
+        </Routes>
+      </LoadProvider>
+    </SearchProvider>
   )
 }
 
