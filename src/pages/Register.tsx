@@ -3,8 +3,6 @@ import styled from 'styled-components';
 import { FIRM_TYPES } from './firm/constants';
 import { useNavigate } from 'react-router-dom';
 import { signUp } from 'aws-amplify/auth';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '../../amplify/data/resource';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -28,55 +26,32 @@ const Register: React.FC = () => {
       const tmpPwd = `Tmp!${Math.random().toString(36).slice(-8)}A1`;
       const companyId = `comp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       
-      // Create the Firm record in DynamoDB first
-      const client = generateClient<Schema>();
-      const { errors } = await client.models.Firm.create({
-        id: companyId,
-        firm_name: firmName,
-        address,
-        administrator_email: email,
-        state: stateCode,
-        zip,
-        firm_type: firmType,
-        load_posts: loadPosts === '' ? 0 : Number(loadPosts),
-        truck_posts: truckPosts === '' ? 0 : Number(truckPosts),
-        // Set default values for required fields
-        city: '',
-        country: 'USA',
-        dba: '',
-        dot: '',
-        mc: '',
-        ein: '',
-        phone: '',
-        website: '',
-        insurance_provider: '',
-        policy_number: '',
-        policy_expiry: '',
-        w9_on_file: false,
-        brand_color: '#2563eb', // Default blue
-        notes: '',
-      });
-
-      if (errors) {
-        throw new Error(errors[0]?.message || 'Failed to create firm record');
-      }
-
-      // Store temporary password for verification step
-      sessionStorage.setItem(`tmpPwd:${email}`, tmpPwd);
-      
-      // Sign up the user with minimal Cognito attributes
+      // First, sign up the user with Cognito (without company_id in user attributes)
       await signUp({
         username: email,
         password: tmpPwd,
         options: {
           userAttributes: { 
             email,
-            'custom:company_id': companyId, // Only store company_id in Cognito
             'custom:registration_status': 'pending_verification',
+            'custom:firm_type': firmType,
           },
           autoSignIn: false
         },
       });
+
+      // Store temporary data in session storage for the verification step
+      sessionStorage.setItem(`tmpPwd:${email}`, tmpPwd);
+      sessionStorage.setItem(`companyData:${email}`, JSON.stringify({
+        companyId,
+        firmName,
+        address,
+        stateCode,
+        zip,
+        firmType,
+        loadPosts: loadPosts === '' ? 0 : Number(loadPosts),
+        truckPosts: truckPosts === '' ? 0 : Number(truckPosts)
+      }));
 
       alert('We sent a 6-digit verification code to your email.');
       navigate(`/verify?email=${encodeURIComponent(email)}`);

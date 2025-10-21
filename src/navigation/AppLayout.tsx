@@ -1,11 +1,103 @@
-import React, { useState } from 'react'
-import { Outlet } from 'react-router-dom'
-import styled from 'styled-components'
-import Sidebar from './Sidebar'
-import { Icon } from '@iconify-icon/react'
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Outlet } from 'react-router-dom';
+import styled from 'styled-components';
+import Sidebar from './Sidebar';
+import { Icon } from '@iconify-icon/react';
+import { SearchProvider, useSearch } from '../contexts/SearchContext';
+import { search, debounce } from '../services/searchService';
+import SearchResults from '../components/SearchResults';
+
+const SearchBar = () => {
+  const { setSearchQuery, setIsSearching, setSearchResults } = useSearch();
+  const [localQuery, setLocalQuery] = useState('');
+  const searchRef = useRef<HTMLDivElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Debounced search function with dynamic updates
+  const performSearch = useCallback(
+    debounce(async (query: string) => {
+      if (!query.trim()) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+      
+      setIsSearching(true);
+      try {
+        const results = await search(query);
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Search failed:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 200), // Reduced debounce time for more responsive feel
+    [setSearchResults, setIsSearching]
+  );
+
+  // Update local state and trigger search on every change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setLocalQuery(query);
+    setSearchQuery(query);
+    
+    // Trigger search immediately for empty query to clear results
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    // Trigger debounced search
+    performSearch(query);
+  };
+
+  // Close results when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setIsFocused(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <SearchWrapper ref={searchRef} $isFocused={isFocused || !!localQuery}>
+      <Icon icon="lucide:search" className="search-icon" />
+      <SearchInput
+        type="text"
+        placeholder="Search"
+        value={localQuery}
+        onChange={handleInputChange}
+        onFocus={() => setIsFocused(true)}
+        autoComplete="off"
+        aria-label="Search"
+      />
+      {localQuery && (
+        <ClearButton 
+          onClick={() => {
+            setLocalQuery('');
+            setSearchQuery('');
+            setSearchResults([]);
+          }}
+          aria-label="Clear search"
+        >
+          <Icon icon="lucide:x" />
+        </ClearButton>
+      )}
+      {(isFocused || localQuery) && <SearchResults />}
+    </SearchWrapper>
+  );
+};
 
 const AppLayout: React.FC = () => {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(false);
+  
   return (
     <Wrapper $collapsed={collapsed}>
       <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
@@ -15,10 +107,7 @@ const AppLayout: React.FC = () => {
             <Icon icon="lucide:plus" className="icon" aria-hidden="true" />
             <span>Quick Create</span>
           </QuickCreateButton>
-          <SearchWrapper role="search">
-            <Icon icon="lucide:search" className="icon" aria-hidden="true" />
-            <SearchInput type="search" placeholder="Search..." aria-label="Global search" />
-          </SearchWrapper>
+          <SearchBar />
           <TopbarActions>
             <IconButton type="button" aria-label="Open notifications">
               <Icon icon="mdi:bell-outline" className="icon" aria-hidden="true" />
@@ -34,10 +123,16 @@ const AppLayout: React.FC = () => {
         </Content>
       </Main>
     </Wrapper>
-  )
-}
+  );
+};
 
-export default AppLayout
+const AppWithSearch: React.FC = () => (
+  <SearchProvider>
+    <AppLayout />
+  </SearchProvider>
+);
+
+export default AppWithSearch;
 
 // styled-components (kept below the component at module scope per project rules)
 const sidebarWidth = '264px'
@@ -72,12 +167,11 @@ const Main = styled.main<{ $collapsed: boolean }>`
 `
 
 const GlobalTopbar = styled.header`
-  display: grid;
-  grid-template-columns: auto minmax(240px, 1fr) auto;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  padding: 16px 24px;
-  padding-left: 48px;
+  gap: 24px;
+  padding: 16px 32px;
   background: rgba(15, 23, 42, 0.92);
   color: #e2e8f0;
   position: sticky;
@@ -85,6 +179,11 @@ const GlobalTopbar = styled.header`
   z-index: 5;
   backdrop-filter: saturate(120%) blur(8px);
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  
+  @media (max-width: 768px) {
+    padding: 12px 16px;
+    gap: 12px;
+  }
 `
 
 const QuickCreateButton = styled.button`
@@ -117,22 +216,56 @@ const QuickCreateButton = styled.button`
   }
 `
 
-const SearchWrapper = styled.form`
-  display: grid;
-  grid-template-columns: 24px 1fr;
+interface SearchWrapperProps {
+  $isFocused?: boolean;
+}
+
+const SearchWrapper = styled.div<SearchWrapperProps>`
+  position: relative;
+  display: flex;
   align-items: center;
   gap: 10px;
   background: rgba(15, 23, 42, 0.35);
   border-radius: 12px;
   padding: 10px 16px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  border: 1px solid ${props => props.$isFocused ? 'rgba(220, 20, 60, 0.5)' : 'rgba(148, 163, 184, 0.24)'};
+  box-shadow: ${props => props.$isFocused ? '0 0 0 2px rgba(220, 20, 60, 0.2)' : 'none'};
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   color: #cbd5e1;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
 
   .icon {
     width: 20px;
     height: 20px;
+    flex-shrink: 0;
+    color: #94a3b8;
   }
-`
+`;
+
+const ClearButton = styled.button`
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease, color 0.2s ease;
+
+  &:hover {
+    background: rgba(220, 20, 60, 0.1);
+    color: #e2e8f0;
+  }
+
+  .icon {
+    width: 16px;
+    height: 16px;
+  }
+`;
 
 const SearchInput = styled.input`
   background: transparent;
@@ -141,9 +274,28 @@ const SearchInput = styled.input`
   color: #f8fafc;
   font-size: 14px;
   width: 100%;
+  padding: 0;
+  margin: 0;
+  line-height: 1.5;
 
   &::placeholder {
     color: #94a3b8;
+    opacity: 0.8;
+  }
+  
+  &::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    height: 16px;
+    width: 16px;
+    margin-left: 8px;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'><path d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/></svg>") no-repeat center;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    
+    &:hover {
+      opacity: 1;
+    }
   }
 `
 
