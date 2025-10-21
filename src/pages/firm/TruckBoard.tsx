@@ -59,7 +59,7 @@ const TruckBoard: React.FC = () => {
     }
   };
 
-  // Fetch trucks only if no cache or on manual refresh
+  // Fetch trucks only if no cache or on manual refresh, and set up auto-refresh
   useEffect(() => {
     if (refreshToken > 0) {
       fetchTrucks();
@@ -70,6 +70,15 @@ const TruckBoard: React.FC = () => {
         fetchTrucks();
       }
     }
+    
+    // Set up interval to fetch every minute (60000ms)
+    const intervalId = setInterval(() => {
+      console.log('Auto-refreshing trucks...');
+      fetchTrucks();
+    }, 60000);
+
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
   }, [refreshToken]);
 
   // Add Truck modal state

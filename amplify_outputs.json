@@ -965,5 +965,16 @@
       }
     }
   },
+  "storage": {
+    "aws_region": "us-east-1",
+    "bucket_name": "amplifyteamdrive-bucket",
+    "buckets": [
+      {
+        "name": "amplifyTeamDrive",
+        "bucket_name": "amplifyteamdrive-bucket",
+        "aws_region": "us-east-1"
+      }
+    ]
+  },
   "version": "1.4"
 }

@@ -198,7 +198,9 @@ const EmailVerification: React.FC = () => {
             notes: '',
             load_posts: 0,
             truck_posts: 0,
-            // Merge any values captured during registration
+            // Include the company ID from the pending firm data
+            id: firmPayload.company_id || undefined,
+            // Merge any values captured during registration (spread after id to prevent it from being overridden)
             ...firmPayload,
             // Ensure normalized/authoritative admin fields
             administrator_email: adminEmailNormalized,

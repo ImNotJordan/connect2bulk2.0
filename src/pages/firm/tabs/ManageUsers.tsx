@@ -7,7 +7,6 @@ import { AdminUpdateUserAttributesCommand, CognitoIdentityProviderClient, ListUs
 import { useAlert } from '../../../components/AlertProvider';
 import outputs from '../../../../amplify_outputs.json';
 
-
 type Role = 'SUPER_MANAGER' | 'MANAGER' | 'MEMBER';
 
 interface NewUserForm {
@@ -18,7 +17,7 @@ interface NewUserForm {
   role: Role;
 }
 
-// Use a structural type to avoid tight coupling to generated Schema typings
+
 type UserEntity = {
   id?: string;
   first_name?: string;
