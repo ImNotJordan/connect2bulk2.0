@@ -138,7 +138,6 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
       { label: 'CRM', to: '/firm/crm', icon: 'mdi:account-group-outline' },
       { label: 'Settings', to: '/firm/settings', icon: 'mdi:cog-outline' },
       { label: 'Admin', to: '/firm/admin', icon: 'mdi:shield-account' },
-      { label: 'Profile', to: '/firm/profile', icon: 'mdi:account-circle-outline' },
     ]
 
     return items
@@ -200,7 +199,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         </NavList>
 
         <Footer>
-          <UserCard>
+          <UserCard onClick={() => navigate('/firm/profile')} role="button" tabIndex={0} title="Go to profile">
             <UserAvatar aria-hidden>{(userName || userEmail || 'U').trim().charAt(0).toUpperCase()}</UserAvatar>
             <UserInfo>
               <UserName $collapsed={collapsed}>{userName || userEmail || '—'}</UserName>
@@ -550,6 +549,22 @@ const UserCard = styled.div`
   gap: 10px;
   align-items: center;
   padding: 10px 12px 10px 12px;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background 160ms ease, transform 80ms ease;
+
+  &:hover {
+    background: rgba(220, 20, 60, 0.10);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #dc143c;
+    outline-offset: 2px;
+  }
 `
 
 const UserAvatar = styled.div`
