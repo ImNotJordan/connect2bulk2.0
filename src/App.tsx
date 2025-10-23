@@ -1,24 +1,40 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, lazy, Suspense } from 'react'
 import './App.css'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import EmailVerification from './pages/EmailVerification'
-import Dashboard from './pages/firm/Dashboard'
-import LoadBoard from './pages/firm/LoadBoard'
-import TruckBoard from './pages/firm/TruckBoard'
-import AdminConsole from './pages/firm/AdminConsole'
-import Search from './pages/firm/Search'
-import Profile from './pages/firm/Profile'
-import Notifications from './pages/firm/Notifications'
-import BusinessProfilePage from './pages/firm/BusinessProfile'
-import Settings from './pages/firm/Settings'
-import UnderConstruction from './pages/firm/UnderConstruction'
-import ResetPassword from './pages/ResetPassword'
 import { fetchAuthSession } from 'aws-amplify/auth'
-import AppLayout from './navigation/AppLayout'
 import { LoadProvider } from './context/LoadContext'
 import { SearchProvider } from './contexts/SearchContext'
+
+// Lazy load components for code splitting
+const Login = lazy(() => import('./pages/Login'))
+const Register = lazy(() => import('./pages/Register'))
+const EmailVerification = lazy(() => import('./pages/EmailVerification'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const AppLayout = lazy(() => import('./navigation/AppLayout'))
+const Dashboard = lazy(() => import('./pages/firm/Dashboard'))
+const LoadBoard = lazy(() => import('./pages/firm/LoadBoard'))
+const TruckBoard = lazy(() => import('./pages/firm/TruckBoard'))
+const AdminConsole = lazy(() => import('./pages/firm/AdminConsole'))
+const Search = lazy(() => import('./pages/firm/Search'))
+const Profile = lazy(() => import('./pages/firm/Profile'))
+const Notifications = lazy(() => import('./pages/firm/Notifications'))
+const BusinessProfilePage = lazy(() => import('./pages/firm/BusinessProfile'))
+const Settings = lazy(() => import('./pages/firm/Settings'))
+const UnderConstruction = lazy(() => import('./pages/firm/UnderConstruction'))
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div style={{ 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    height: '100vh',
+    fontSize: '1.2rem',
+    color: '#666'
+  }}>
+    Loading...
+  </div>
+)
 
 // Redirect to dashboard if already signed in
 function RedirectIfSignedIn({ children }: { children: React.ReactElement }) {
@@ -74,6 +90,7 @@ function App() {
   return (
     <SearchProvider>
       <LoadProvider>
+        <Suspense fallback={<LoadingFallback />}>
         <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         {/* Auth routes (no sidebar) */}
@@ -139,6 +156,7 @@ function App() {
           <Route path="/firm/crm" element={<UnderConstruction title="CRM" />} />
         </Route>
         </Routes>
+        </Suspense>
       </LoadProvider>
     </SearchProvider>
   )

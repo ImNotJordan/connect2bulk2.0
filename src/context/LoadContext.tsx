@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 
 // Define the shape of our context data
@@ -27,25 +27,25 @@ export const LoadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [lastCreated, setLastCreated] = useState<any | null>(null);
   const [refreshToken, setRefreshToken] = useState<number>(0);
 
-  const incrementRefreshToken = () => {
-    setRefreshToken((prev) => {
-      const next = prev + 1;
-      // Increment refreshToken
-      return next;
-    });
-  };
+  const incrementRefreshToken = useCallback(() => {
+    setRefreshToken((prev) => prev + 1);
+  }, []);
+
+  // Memoize the context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({
+      loadData,
+      setLoadData,
+      lastCreated,
+      setLastCreated,
+      refreshToken,
+      incrementRefreshToken,
+    }),
+    [loadData, lastCreated, refreshToken, incrementRefreshToken]
+  );
 
   return (
-    <LoadContext.Provider
-      value={{
-        loadData,
-        setLoadData,
-        lastCreated,
-        setLastCreated,
-        refreshToken,
-        incrementRefreshToken,
-      }}
-    >
+    <LoadContext.Provider value={contextValue}>
       {children}
     </LoadContext.Provider>
   );

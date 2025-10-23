@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 
 interface SearchContextType {
@@ -17,17 +17,34 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  // Memoize callbacks to prevent unnecessary re-renders
+  const handleSetSearchQuery = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
+  const handleSetSearchResults = useCallback((results: any[]) => {
+    setSearchResults(results);
+  }, []);
+
+  const handleSetIsSearching = useCallback((searching: boolean) => {
+    setIsSearching(searching);
+  }, []);
+
+  // Memoize context value
+  const contextValue = useMemo(
+    () => ({
+      searchQuery,
+      setSearchQuery: handleSetSearchQuery,
+      searchResults,
+      setSearchResults: handleSetSearchResults,
+      isSearching,
+      setIsSearching: handleSetIsSearching,
+    }),
+    [searchQuery, searchResults, isSearching, handleSetSearchQuery, handleSetSearchResults, handleSetIsSearching]
+  );
+
   return (
-    <SearchContext.Provider
-      value={{
-        searchQuery,
-        setSearchQuery,
-        searchResults,
-        setSearchResults,
-        isSearching,
-        setIsSearching,
-      }}
-    >
+    <SearchContext.Provider value={contextValue}>
       {children}
     </SearchContext.Provider>
   );

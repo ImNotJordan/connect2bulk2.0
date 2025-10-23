@@ -456,9 +456,11 @@ const LoadBoard: React.FC = () => {
               id: "my",
               label: "My Loads",
               content: <MyLoads 
-                loads={[]} 
-                onAddNewLoad={() => {}}
-                onDeleteLoad={async () => {}}
+                loads={loads}
+                key={`my-loads-${refreshToken}`}
+                onAddNewLoad={() => setAddOpen(true)}
+                onDeleteLoad={handleDeleteLoad}
+                deletingId={loading ? 'deleting' : undefined}
               />,
             },
           ]}

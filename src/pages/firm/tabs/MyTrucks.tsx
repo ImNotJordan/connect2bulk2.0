@@ -306,21 +306,6 @@ const MyTrucks: React.FC<Props> = ({
                       <td>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
-                            onClick={() => {
-                              // Implement edit functionality
-                              // Edit truck
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#3b82f6',
-                              cursor: 'pointer',
-                            }}
-                            aria-label={`Edit truck ${truck.truck_number}`}
-                          >
-                            <Icon icon="mdi:pencil" />
-                          </button>
-                          <button
                             onClick={() => handleDeleteClick(truck.id)}
                             style={{
                               background: 'none',

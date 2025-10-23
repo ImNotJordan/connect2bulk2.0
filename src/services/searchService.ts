@@ -13,14 +13,10 @@ const getClient = () => {
 
 type SearchResultType = 
   | 'load' 
-  | 'truck' 
-  | 'user' 
-  | 'firm' 
-  | 'document'
-  | 'business-profile'
-  | 'admin-console'
-  | 'settings'
-  | 'notification';
+  | 'carrier' 
+  | 'lane' 
+  | 'contact' 
+  | 'document';
 
 interface SearchResult {
   id: string;
@@ -32,64 +28,7 @@ interface SearchResult {
   relevance?: number; // For sorting results by relevance
 }
 
-// System-wide searchable features
-const systemFeatures: Array<{
-  id: string;
-  title: string;
-  type: SearchResultType;
-  path: string;
-  icon: string;
-  keywords: string[];
-}> = [
-  {
-    id: 'load-board',
-    title: 'Load Board',
-    type: 'load',
-    path: '/load-board',
-    icon: 'mdi:truck-delivery',
-    keywords: ['loads', 'shipments', 'freight', 'deliveries']
-  },
-  {
-    id: 'truck-board',
-    title: 'Truck Board',
-    type: 'truck',
-    path: '/firm/truck-board',
-    icon: 'mdi:truck',
-    keywords: ['trucks', 'vehicles', 'fleet']
-  },
-  {
-    id: 'business-profile',
-    title: 'Business Profile',
-    type: 'business-profile',
-    path: '/business-profile',
-    icon: 'mdi:office-building',
-    keywords: ['company', 'profile', 'business', 'firm']
-  },
-  {
-    id: 'admin-console',
-    title: 'Admin Console',
-    type: 'admin-console',
-    path: '/firm/admin',
-    icon: 'mdi:shield-account',
-    keywords: ['administration', 'settings', 'users', 'permissions']
-  },
-  {
-    id: 'settings',
-    title: 'Settings',
-    type: 'settings',
-    path: '/settings',
-    icon: 'mdi:cog',
-    keywords: ['preferences', 'configuration', 'setup']
-  },
-  {
-    id: 'notifications',
-    title: 'Notifications',
-    type: 'notification',
-    path: '/notifications',
-    icon: 'mdi:bell',
-    keywords: ['alerts', 'updates', 'messages']
-  }
-];
+// Global search is restricted to: Loads, Carriers, Lanes, Contacts, and Documents only
 
 // Helper function to calculate relevance score
 const calculateRelevance = (text: string, query: string, keywords: string[] = []): number => {
@@ -155,23 +94,8 @@ export const search = async (query: string): Promise<SearchResult[]> => {
   try {
     const searchTerm = query.toLowerCase().trim();
     const results: SearchResult[] = [];
-    
-    // 1. Search system features
-    systemFeatures.forEach(feature => {
-      addSearchResult(
-        results,
-        { id: feature.id },
-        feature.type,
-        feature.title,
-        feature.path,
-        feature.icon,
-        searchTerm,
-        '',
-        feature.keywords
-      );
-    });
 
-    // 2. Search loads
+    // 1. Search Loads
     try {
       const { data: loads } = await getClient().models.Load?.list({
         filter: {
@@ -208,45 +132,96 @@ export const search = async (query: string): Promise<SearchResult[]> => {
       // Error searching loads
     }
 
-    // 3. Search firms
+    // 2. Search Carriers (Firms)
     try {
-      const { data: firms } = await getClient().models.Firm?.list({
+      const { data: carriers } = await getClient().models.Firm?.list({
         filter: {
           or: [
             { firm_name: { contains: searchTerm } },
             { address: { contains: searchTerm } },
             { city: { contains: searchTerm } },
             { state: { contains: searchTerm } },
-            { firm_type: { contains: searchTerm } }
+            { firm_type: { contains: searchTerm } },
+            { mc: { contains: searchTerm } },
+            { dot: { contains: searchTerm } }
           ]
         },
-        limit: 5
+        limit: 10
       }) || { data: [] };
 
-      firms?.forEach(firm => {
-        if (firm.id && firm.firm_name) {
-          const subtitle = `${firm.firm_type || 'Firm'} • ${firm.city || ''}${firm.state ? `, ${firm.state}` : ''}`;
+      carriers?.forEach(carrier => {
+        if (carrier.id && carrier.firm_name) {
+          const subtitle = `${carrier.firm_type || 'Carrier'} • ${carrier.city || ''}${carrier.state ? `, ${carrier.state}` : ''}`;
           
           addSearchResult(
             results,
-            firm,
-            'firm',
-            firm.firm_name,
-            `/firm/${firm.id}`,
-            'mdi:office-building',
+            carrier,
+            'carrier',
+            carrier.firm_name,
+            `/firm/${carrier.id}`,
+            'mdi:truck-flatbed',
             searchTerm,
             subtitle,
-            ['company', 'business', 'organization']
+            ['carrier', 'company', 'business', 'broker', 'shipper']
           );
         }
       });
     } catch (error) {
-      // Error searching firms
+      // Error searching carriers
     }
 
-    // 4. Search users by email
+    // 3. Search Lanes (Common routes between origins and destinations)
     try {
-      const { data: users } = await getClient().models.User?.list({
+      const { data: loads } = await getClient().models.Load?.list({
+        filter: {
+          or: [
+            { origin: { contains: searchTerm } },
+            { destination: { contains: searchTerm } }
+          ]
+        },
+        limit: 20
+      }) || { data: [] };
+
+      // Group by unique lanes (origin-destination pairs)
+      const laneMap = new Map<string, { origin: string; destination: string; count: number }>();
+      
+      loads?.forEach(load => {
+        if (load.origin && load.destination) {
+          const laneKey = `${load.origin}-${load.destination}`;
+          if (laneMap.has(laneKey)) {
+            const lane = laneMap.get(laneKey)!;
+            lane.count++;
+          } else {
+            laneMap.set(laneKey, {
+              origin: load.origin,
+              destination: load.destination,
+              count: 1
+            });
+          }
+        }
+      });
+
+      // Add lanes to results
+      laneMap.forEach((lane, laneKey) => {
+        addSearchResult(
+          results,
+          { id: laneKey },
+          'lane',
+          `${lane.origin} → ${lane.destination}`,
+          `/firm/load-board?lane=${encodeURIComponent(laneKey)}`,
+          'mdi:map-marker-path',
+          searchTerm,
+          `${lane.count} load${lane.count !== 1 ? 's' : ''}`,
+          ['route', 'corridor', 'lane']
+        );
+      });
+    } catch (error) {
+      // Error searching lanes
+    }
+
+    // 4. Search Contacts (Users)
+    try {
+      const { data: contacts } = await getClient().models.User?.list({
         filter: {
           or: [
             { email: { contains: searchTerm } },
@@ -255,59 +230,67 @@ export const search = async (query: string): Promise<SearchResult[]> => {
             { phone: { contains: searchTerm } }
           ]
         },
-        limit: 5
+        limit: 10
       }) || { data: [] };
 
-      users?.forEach(user => {
-        if (user.id && user.email) {
-          const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'User';
-          const subtitle = user.email;
+      contacts?.forEach(contact => {
+        if (contact.id && (contact.email || contact.first_name || contact.last_name)) {
+          const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || 'Contact';
+          const subtitle = contact.email || contact.phone || '';
           
           addSearchResult(
             results,
-            user,
-            'user',
+            contact,
+            'contact',
             fullName,
-            `/firm/users/${user.id}`,
-            'mdi:account',
+            `/firm/users/${contact.id}`,
+            'mdi:account-circle',
             searchTerm,
             subtitle,
-            ['person', 'contact', 'team', 'member']
+            ['person', 'contact', 'user', 'team', 'member']
           );
         }
       });
     } catch (error) {
-      // Error searching users
+      // Error searching contacts
     }
 
-    // Search users
+    // 5. Search Documents (with OCR'd fields)
+    // Note: This assumes you have a Document model with OCR fields
+    // Adjust based on your actual document schema
     try {
-      const { data: users } = await getClient().models.User?.list({
+      // If you have a Document model, uncomment and adjust:
+      /*
+      const { data: documents } = await getClient().models.Document?.list({
         filter: {
           or: [
-            { first_name: { contains: searchTerm } },
-            { last_name: { contains: searchTerm } },
-            { email: { contains: searchTerm } }
+            { document_name: { contains: searchTerm } },
+            { document_type: { contains: searchTerm } },
+            { ocr_content: { contains: searchTerm } },
+            { extracted_text: { contains: searchTerm } }
           ]
         },
-        limit: 5
+        limit: 10
       }) || { data: [] };
 
-      users?.forEach(user => {
-        if (user.id && (user.first_name || user.last_name || user.email)) {
-          const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-          results.push({
-            id: user.id,
-            title: fullName || user.email || 'User',
-            type: 'user',
-            path: `/users/${user.id}`,
-            subtitle: user.email || 'No email',
-            icon: 'mdi:account'
-          });
+      documents?.forEach(doc => {
+        if (doc.id) {
+          addSearchResult(
+            results,
+            doc,
+            'document',
+            doc.document_name || 'Document',
+            `/firm/documents/${doc.id}`,
+            'mdi:file-document',
+            searchTerm,
+            doc.document_type || '',
+            ['document', 'file', 'pdf', 'ocr']
+          );
         }
       });
+      */
     } catch (error) {
-      // Error searching users
+      // Error searching documents
     }
     
     return results;
