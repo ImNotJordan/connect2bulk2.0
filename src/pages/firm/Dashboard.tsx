@@ -2,6 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import FolderTabs from '../../components/FolderTabs';
 import Overview from './tabs/Overview';
+import UnbilledLoads from './tabs/UnbilledLoads';
 
 const Dashboard: React.FC = () => {
   return (
@@ -15,6 +16,11 @@ const Dashboard: React.FC = () => {
               id: 'overview',
               label: 'Overview',
               content: <Overview />,
+            },
+            {
+              id: 'unbilled',
+              label: 'Unbilled Loads',
+              content: <UnbilledLoads />,
             },
             {
               id: 'statistics',
