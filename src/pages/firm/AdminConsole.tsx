@@ -1,11 +1,16 @@
 import React from 'react';
 import styled from 'styled-components';
+import { useSearchParams } from 'react-router-dom';
 import FolderTabs from '../../components/FolderTabs';
 import BusinessProfile from './tabs/BusinessProfile';
 import ManageUsers from './tabs/ManageUsers';
 import ManageTeams from './tabs/ManageTeams';
 
 const AdminConsole: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const highlightCarrierId = searchParams.get('carrierId');
+  const highlightUserId = searchParams.get('userId');
+
   return (
     <Page>
       <Content>
@@ -16,12 +21,12 @@ const AdminConsole: React.FC = () => {
             {
               id: 'business',
               label: 'Business Profile',
-              content: <BusinessProfile />,
+              content: <BusinessProfile highlightCarrierId={highlightCarrierId || undefined} />,
             },
             {
               id: 'users',
               label: 'Manage Users',
-              content: <ManageUsers />,
+              content: <ManageUsers highlightUserId={highlightUserId || undefined} />,
             },
             {
               id: 'teams',

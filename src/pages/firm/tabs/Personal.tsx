@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { fetchUserAttributes, updateUserAttributes } from '@aws-amplify/auth';
+import { uploadData, getUrl } from '@aws-amplify/storage';
 import { generateClient } from '@aws-amplify/api';
 import type { Schema } from '../../../../amplify/data/resource';
 import { useAlert } from '../../../components/AlertProvider';
@@ -43,6 +44,8 @@ const Personal: React.FC = () => {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [avatarError, setAvatarError] = useState<string>('');
+  const [avatarPreview, setAvatarPreview] = useState<string>('');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [saving, setSaving] = useState(false);
 
@@ -84,6 +87,17 @@ const Personal: React.FC = () => {
           gender: attrs['custom:gender'] || '',
           timezone: attrs['custom:timezone'] || ''
         };
+        
+        // If there's an avatar path stored, generate a fresh presigned URL
+        if (formData.avatarUrl) {
+          try {
+            const { url } = await getUrl({ path: formData.avatarUrl });
+            formData.avatarUrl = url.toString();
+          } catch (err) {
+            console.error('Failed to load avatar URL:', err);
+            formData.avatarUrl = '';
+          }
+        }
         
         // Merged form data
         
@@ -285,14 +299,47 @@ const Personal: React.FC = () => {
     return `+${withCC}`;
   };
 
-  const onFileSelected = (file: File) => {
+  const onFileSelected = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setAvatarError('Please upload an image file (PNG or JPG).');
       return;
     }
     setAvatarError('');
-    const url = URL.createObjectURL(file);
-    setForm((prev) => ({ ...prev, avatarUrl: url }));
+    setUploadingAvatar(true);
+
+    try {
+      // Create a temporary preview blob URL
+      const previewUrl = URL.createObjectURL(file);
+      setAvatarPreview(previewUrl);
+
+      // Upload to S3
+      const fileName = `public/avatars/${Date.now()}-${file.name}`;
+      const result = await uploadData({
+        path: fileName,
+        data: file,
+        options: {
+          contentType: file.type,
+        }
+      }).result;
+
+      // Store the S3 path (not the temporary URL) so we can generate fresh URLs later
+      // The path is what we'll save to Cognito
+      setForm((prev) => ({ ...prev, avatarUrl: result.path }));
+      
+      alertApi?.success({
+        title: 'Avatar uploaded',
+        message: 'Your profile picture has been uploaded successfully.',
+      });
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      setAvatarError('Failed to upload avatar. Please try again.');
+      alertApi?.error({
+        title: 'Upload failed',
+        message: 'Failed to upload avatar. Please try again.',
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const onAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -543,7 +590,7 @@ const Personal: React.FC = () => {
 
         <AvatarRow>
           <AvatarPreview
-            $src={form.avatarUrl}
+            $src={avatarPreview || form.avatarUrl}
             $editable={editing}
             $dragActive={dragActive}
             onDragEnter={editing ? onAvatarDragEnter : undefined}
@@ -555,8 +602,16 @@ const Personal: React.FC = () => {
           {editing && (
             <div>
               <Label htmlFor="avatar">Avatar</Label>
-              <Input id="avatar" type="file" accept="image/*" onChange={onAvatarChange} />
-              <HelpText>PNG or JPG. Drag & drop supported.</HelpText>
+              <Input 
+                id="avatar" 
+                type="file" 
+                accept="image/*" 
+                onChange={onAvatarChange}
+                disabled={uploadingAvatar}
+              />
+              <HelpText>
+                {uploadingAvatar ? 'Uploading...' : 'PNG or JPG. Drag & drop supported.'}
+              </HelpText>
               {avatarError && <ErrorText role="alert">{avatarError}</ErrorText>}
             </div>
           )}
@@ -959,7 +1014,7 @@ const sharedInput = `
   color: #2a2f45;
   font: inherit;
   outline: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
 
   &:focus-visible {
     border-color: #0d6efd;
@@ -1057,7 +1112,6 @@ const AvatarPreview = styled.div<{ $src?: string; $editable?: boolean; $dragActi
   border: ${({ $editable }) => ($editable ? '2px dashed rgba(40, 44, 69, 0.2)' : '1px solid rgba(40, 44, 69, 0.12)')};
   background: ${({ $src }) => ($src ? `url(${$src}) center/cover no-repeat` : '#e2e8f0')};
   transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
-  cursor: ${({ $editable }) => ($editable ? 'copy' : 'default')};
 
   ${({ $dragActive }) =>
     $dragActive

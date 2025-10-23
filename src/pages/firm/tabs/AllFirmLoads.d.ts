@@ -4,6 +4,8 @@ type Props = {
     onAddNewLoad: () => void;
     onDeleteLoad?: (loadId: string) => Promise<void>;
     deletingId?: string | null;
+    highlightLoadId?: string;
+    highlightLane?: string;
 };
 declare const AllFirmLoads: React.FC<Props>;
 export default AllFirmLoads;

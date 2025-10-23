@@ -9,17 +9,23 @@ type Props = {
   onAddNewLoad: () => void;
   onDeleteLoad?: (loadId: string) => Promise<void>;
   deletingId?: string | null;
+  highlightLoadId?: string;
+  highlightLane?: string;
 };
 
 const AllFirmLoads: React.FC<Props> = ({ 
   loads = [], 
   onAddNewLoad, 
   onDeleteLoad,
-  deletingId 
+  deletingId,
+  highlightLoadId,
+  highlightLane
 }) => {
   // Search state
   const [searchText, setSearchText] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
+  const [showHighlight, setShowHighlight] = useState(false);
 
   // Data state and alert
   const { loadData: contextRows, setLoadData: setContextRows, lastCreated } = useLoadContext();
@@ -99,6 +105,31 @@ const AllFirmLoads: React.FC<Props> = ({
 
   // Track initial render with useRef
   const isInitialMount = useRef(true);
+  
+  // Scroll to highlighted load/lane and manage highlight display
+  useEffect(() => {
+    if (highlightLoadId || highlightLane) {
+      // Enable highlight
+      setShowHighlight(true);
+      
+      // Scroll to the row after a small delay to ensure it's rendered
+      if (highlightedRowRef.current) {
+        setTimeout(() => {
+          highlightedRowRef.current?.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+        }, 300);
+      }
+      
+      // Remove highlight after 2 seconds
+      const timer = setTimeout(() => {
+        setShowHighlight(false);
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [highlightLoadId, highlightLane, localRows]);
   
   // Initialize with props or context data
   useEffect(() => {
@@ -329,8 +360,17 @@ const AllFirmLoads: React.FC<Props> = ({
                 <td colSpan={columns.length}>No loads found.</td>
               </tr>
             )}
-            {!loading && !error && filteredRows.map((r: any) => (
-              <tr key={r.id ?? `${r.load_number}-${r.created_at}`}>
+            {!loading && !error && filteredRows.map((r: any) => {
+              const laneKey = r.origin && r.destination ? `${r.origin}-${r.destination}` : null;
+              const isHighlighted = (r.id === highlightLoadId || laneKey === highlightLane) && showHighlight;
+              const shouldRef = r.id === highlightLoadId || laneKey === highlightLane;
+              
+              return (
+              <HighlightableRow 
+                key={r.id ?? `${r.load_number}-${r.created_at}`}
+                ref={shouldRef ? highlightedRowRef : null}
+                $highlighted={isHighlighted}
+              >
                 {columns.map(col => (
                   <TableCell key={col.key}>
                     {col.key === 'actions' && onDeleteLoad ? (
@@ -354,8 +394,9 @@ const AllFirmLoads: React.FC<Props> = ({
                     )}
                   </TableCell>
                 ))}
-              </tr>
-            ))}
+              </HighlightableRow>
+              );
+            })}
           </tbody>
         </StyledTable>
 
@@ -490,6 +531,24 @@ const TableWrap = styled.div`
   overflow-x: auto; /* allow horizontal scroll on smaller screens */
   overflow-y: hidden;
   background: #fff;
+`;
+
+const HighlightableRow = styled.tr<{ $highlighted: boolean }>`
+  background-color: ${props => props.$highlighted ? '#fff3cd' : 'transparent'};
+  transition: background-color 0.3s ease;
+  
+  ${props => props.$highlighted && `
+    animation: highlight-pulse 2s ease-in-out;
+    
+    @keyframes highlight-pulse {
+      0%, 100% {
+        background-color: #fff3cd;
+      }
+      50% {
+        background-color: #ffeaa7;
+      }
+    }
+  `}
 `;
 
 const TableCell = styled.td`

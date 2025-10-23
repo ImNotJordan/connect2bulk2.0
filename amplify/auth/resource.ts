@@ -21,78 +21,8 @@ export const auth = defineAuth({
       mutable: true,
       required: false,
     },
-    // Custom attributes for extended profile data
-    'custom:avatarUrl': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 2048,
-    },
-    'custom:bio': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 2048,
-    },
-    'custom:city': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 256,
-    },
-    'custom:country': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 256,
-    },
-    'custom:countryCode': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 10,
-    },
-    'custom:countryIso2': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 2,
-    },
-    'custom:dateOfBirth': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 10,
-    },
-    'custom:gender': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 50,
-    },
-    'custom:language': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 10,
-    },
-    'custom:newsletter': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 10,
-    },
-    'custom:twoFactor': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 10,
-    },
-    'custom:timezone': {
-      dataType: 'String',
-      mutable: true,
-      minLen: 0,
-      maxLen: 100,
-    },
+    // Note: Custom attributes removed to avoid conflicts with existing User Pool
+    // The existing custom attributes in your User Pool will remain accessible
+    // but won't be redefined here to prevent deployment errors
   },
 });

@@ -10,6 +10,7 @@ import { useLoadContext } from '../../context/LoadContext';
 import { generateClient } from 'aws-amplify/data';
 import { getCurrentUser } from 'aws-amplify/auth';
 import type { Schema } from "../../../amplify/data/resource";
+import { useSearchParams } from 'react-router-dom';
 
 const TRAILER_TYPES_SET = new Set(TRAILER_TYPES.map((t) => toAllCaps(t)));
 
@@ -50,6 +51,9 @@ const defaultForm: FormState = {
 const LoadBoard: React.FC = () => {
   const { info, warning } = useAlert();
   const { setLastCreated, refreshToken } = useLoadContext();
+  const [searchParams] = useSearchParams();
+  const highlightLoadId = searchParams.get('loadId');
+  const highlightLane = searchParams.get('lane');
 
   // Initialize Amplify client after configuration
   const client = useMemo(() => generateClient<Schema>(), []);
@@ -439,6 +443,8 @@ const LoadBoard: React.FC = () => {
                   onAddNewLoad={() => setAddOpen(true)}
                   onDeleteLoad={handleDeleteLoad}
                   deletingId={loading ? 'deleting' : undefined}
+                  highlightLoadId={highlightLoadId || undefined}
+                  highlightLane={highlightLane || undefined}
                 />
               ),
             },
