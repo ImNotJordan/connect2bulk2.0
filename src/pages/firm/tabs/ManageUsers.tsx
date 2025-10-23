@@ -7,7 +7,7 @@ import { AdminUpdateUserAttributesCommand, CognitoIdentityProviderClient, ListUs
 import { useAlert } from '../../../components/AlertProvider';
 import outputs from '../../../../amplify_outputs.json';
 
-type Role = 'SUPER_MANAGER' | 'MANAGER' | 'MEMBER';
+type Role = 'ORGANIZATION_OWNER' | 'ADMIN' | 'OPERATION_MANAGER' | 'BROKER' | 'DISPATCHER' | 'ACCOUNTING' | 'SALES' | 'MARKETING' | 'CUSTOMER';
 
 interface NewUserForm {
   firstName: string;
@@ -34,7 +34,7 @@ const DEFAULT_FORM: NewUserForm = {
   lastName: '',
   email: '',
   phone: '',
-  role: 'MEMBER',
+  role: 'CUSTOMER',
 };
 
 const ManageUsers: React.FC = () => {
@@ -49,12 +49,12 @@ const ManageUsers: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editingRole, setEditingRole] = useState<Role>('MEMBER');
+  const [editingRole, setEditingRole] = useState<Role>('CUSTOMER');
   const [savingRole, setSavingRole] = useState<boolean>(false);
   const [rowsPerPage, setRowsPerPage] = useState(15);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkRole, setBulkRole] = useState<Role>('MEMBER');
+  const [bulkRole, setBulkRole] = useState<Role>('CUSTOMER');
   const [bulkSaving, setBulkSaving] = useState<boolean>(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
@@ -241,14 +241,14 @@ const ManageUsers: React.FC = () => {
   };
 
   const startEditRole = (u: UserEntity) => {
-    const code = normalizeRoleValue(u.role) ?? 'MEMBER';
+    const code = normalizeRoleValue(u.role) ?? 'CUSTOMER';
     setEditingUserId(String(u.id ?? ''));
     setEditingRole(code);
   };
 
   const cancelEditRole = () => {
     setEditingUserId(null);
-    setEditingRole('MEMBER');
+    setEditingRole('CUSTOMER');
     setSavingRole(false);
   };
 
@@ -325,13 +325,24 @@ const ManageUsers: React.FC = () => {
   }, []);
 
   const displayRole = (r: any): string => {
+    // Return '-' if role is none, null, undefined, empty, or 0
+    if (!r || r === '0' || r === 0) return '-';
+    
     const v = String(r ?? '').toUpperCase();
-    if (v === 'SUPER_MANAGER') return 'Super Manager';
-    if (v === 'MANAGER') return 'Manager';
-    if (v === 'MEMBER') return 'Member';
+    if (v === 'ORGANIZATION_OWNER') return 'Organization Owner';
+    if (v === 'ADMIN') return 'Admin';
+    if (v === 'OPERATION_MANAGER') return 'Operation Manager';
+    if (v === 'BROKER') return 'Broker';
+    if (v === 'DISPATCHER') return 'Dispatcher';
+    if (v === 'ACCOUNTING') return 'Accounting';
+    if (v === 'SALES') return 'Sales';
+    if (v === 'MARKETING') return 'Marketing';
+    if (v === 'CUSTOMER') return 'Customer';
+    
     // Legacy labels fallback
-    if (r === 'Super Manager' || r === 'Manager' || r === 'Member') return String(r);
-    return 'Member';
+    if (r === 'Organization Owner' || r === 'Admin') return String(r);
+    
+    return '-';
   };
 
   const set = (key: keyof NewUserForm) =>
@@ -555,13 +566,25 @@ const ManageUsers: React.FC = () => {
 
   const normalizeRoleValue = (r: any): Role | null => {
     const v = String(r ?? '').toUpperCase();
-    if (v === 'SUPER_MANAGER') return 'SUPER_MANAGER';
-    if (v === 'MANAGER') return 'MANAGER';
-    if (v === 'MEMBER') return 'MEMBER';
+    if (v === 'ORGANIZATION_OWNER') return 'ORGANIZATION_OWNER';
+    if (v === 'ADMIN') return 'ADMIN';
+    if (v === 'OPERATION_MANAGER') return 'OPERATION_MANAGER';
+    if (v === 'BROKER') return 'BROKER';
+    if (v === 'DISPATCHER') return 'DISPATCHER';
+    if (v === 'ACCOUNTING') return 'ACCOUNTING';
+    if (v === 'SALES') return 'SALES';
+    if (v === 'MARKETING') return 'MARKETING';
+    if (v === 'CUSTOMER') return 'CUSTOMER';
     // Map legacy labels
-    if (r === 'Super Manager' || r === 'Admin') return 'SUPER_MANAGER';
-    if (r === 'Manager') return 'MANAGER';
-    if (r === 'Member' || r === 'Regular') return 'MEMBER';
+    if (r === 'Organization Owner' || r === 'Admin') return 'ORGANIZATION_OWNER';
+    if (r === 'ADMIN') return 'ADMIN';
+    if (r === 'OPERATION_MANAGER') return 'OPERATION_MANAGER';
+    if (r === 'BROKER') return 'BROKER';
+    if (r === 'DISPATCHER') return 'DISPATCHER';
+    if (r === 'ACCOUNTING') return 'ACCOUNTING';
+    if (r === 'SALES') return 'SALES';
+    if (r === 'MARKETING') return 'MARKETING';
+    if (r === 'CUSTOMER') return 'CUSTOMER';
     return null;
   };
 
@@ -622,9 +645,15 @@ const ManageUsers: React.FC = () => {
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             <span>Bulk Role:</span>
             <Select value={bulkRole} onChange={(e) => setBulkRole(e.target.value as Role)}>
-              <option value="SUPER_MANAGER">Super Manager</option>
-              <option value="MANAGER">Manager</option>
-              <option value="MEMBER">Member</option>
+              <option value="ORGANIZATION_OWNER">Organization Owner</option>
+              <option value="ADMIN">Admin</option>
+              <option value="OPERATION_MANAGER">Operation Manager</option>
+              <option value="BROKER">Broker</option>
+              <option value="DISPATCHER">Dispatcher</option>
+              <option value="ACCOUNTING">Accounting</option>
+              <option value="SALES">Sales</option>
+              <option value="MARKETING">Marketing</option>
+              <option value="CUSTOMER">Customer</option>
             </Select>
           </div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>

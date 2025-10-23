@@ -4,7 +4,7 @@ import { deleteCognitoUser as deleteCognitoUserFn } from '../functions/deleteCog
 
 // Define enums
 const FirmType = a.enum(['Carrier', 'Shipper', 'Broker', 'Other']);
-const Role = a.enum(['SUPER_MANAGER', 'MANAGER', 'MEMBER', 'Manager', 'Member', 'Admin', 'Regular']);
+const Role = a.enum(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER', 'BROKER', 'DISPATCHER', 'ACCOUNTING', 'SALES', 'MARKETING', 'CUSTOMER']);
 
 const schema = a.schema({
 
@@ -34,7 +34,7 @@ const schema = a.schema({
     load_posts: a.integer(),
     truck_posts: a.integer(),
   }).authorization((allow) => [
-    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'update', 'delete', 'read']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']).to(['create', 'update', 'delete', 'read']),
     allow.authenticated().to(['create', 'read', 'update']),
   ]),
 
@@ -50,7 +50,7 @@ const schema = a.schema({
     firm_id: a.string(),
   }).authorization((allow) => [
     allow.owner().to(['create', 'update', 'delete', 'read']),
-    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'update', 'delete', 'read']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']).to(['create', 'update', 'delete', 'read']),
     allow.authenticated().to(['read']),
   ]),
 
@@ -74,7 +74,7 @@ const schema = a.schema({
     created_at: a.datetime(),
   }).authorization((allow) => [
     allow.owner().to(['create', 'update', 'delete', 'read']),
-    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'read', 'update', 'delete']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']).to(['create', 'read', 'update', 'delete']),
     allow.authenticated().to(['create', 'read', 'update', 'delete']),
   ]),
 
@@ -98,7 +98,7 @@ const schema = a.schema({
     // Allow owners to manage their own trucks
     allow.owner(),
     // Allow admins to manage all trucks
-    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['read', 'create', 'update', 'delete']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']).to(['read', 'create', 'update', 'delete']),
     // Allow authenticated users to create and read trucks
     allow.authenticated().to(['create', 'read']),
   ]),
@@ -116,7 +116,7 @@ const schema = a.schema({
     created_at: a.datetime(),
   }).authorization((allow) => [
     allow.owner().to(['create', 'update', 'delete', 'read']),
-    allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']).to(['create', 'read', 'update', 'delete']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']).to(['create', 'read', 'update', 'delete']),
     allow.authenticated().to(['read']),
   ]),
 
@@ -133,7 +133,7 @@ const schema = a.schema({
     .returns(a.boolean())
     .authorization((allow) => [
       allow.authenticated(),
-      allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']),
+      allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']),
     ])
     .handler(a.handler.function(sendResetEmailFn)),
 
@@ -147,7 +147,7 @@ const schema = a.schema({
     })
     .returns(a.boolean())
     .authorization((allow) => [
-      allow.groups(['SUPER_MANAGER', 'MANAGER', 'ADMIN']),
+      allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']),
     ])
     .handler(a.handler.function(deleteCognitoUserFn)),
 });

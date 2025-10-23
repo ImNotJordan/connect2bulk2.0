@@ -279,7 +279,7 @@ const EmailVerification: React.FC = () => {
               last_name: last,
               email: lowerEmail,
               phone: '',
-              role: 'SUPER_MANAGER',
+              role: 'ORGANIZATION_OWNER',
               ...(createdFirmId ? { firm_id: createdFirmId } : {}),
             }, { authMode: 'userPool' } as any);
             if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(', '));
@@ -291,7 +291,7 @@ const EmailVerification: React.FC = () => {
                 last_name: last,
                 email: lowerEmail,
                 phone: '',
-                role: 'SUPER_MANAGER',
+                role: 'ORGANIZATION_OWNER',
                 ...(createdFirmId ? { firm_id: createdFirmId } : {}),
               }, { authMode: 'identityPool' } as any);
               if (res2?.errors?.length) throw new Error(res2.errors.map((e: any) => e.message).join(', '));
@@ -320,7 +320,7 @@ const EmailVerification: React.FC = () => {
           }
         } else {
           // Ensure role is SUPER_MANAGER
-          const desired = 'SUPER_MANAGER';
+          const desired = 'ORGANIZATION_OWNER';
           const current = String(me?.role ?? '').toUpperCase();
           const needsRoleUpdate = current !== desired;
           const needsFirmId = !!createdFirmId && String(me?.firm_id || '') !== String(createdFirmId);
