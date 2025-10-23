@@ -1,7 +1,15 @@
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 
-const client = generateClient<Schema>();
+// Lazy initialization - client will be created when first needed
+let client: ReturnType<typeof generateClient<Schema>> | null = null;
+
+const getClient = () => {
+  if (!client) {
+    client = generateClient<Schema>();
+  }
+  return client;
+};
 
 type SearchResultType = 
   | 'load' 
@@ -165,7 +173,7 @@ export const search = async (query: string): Promise<SearchResult[]> => {
 
     // 2. Search loads
     try {
-      const { data: loads } = await client.models.Load?.list({
+      const { data: loads } = await getClient().models.Load?.list({
         filter: {
           or: [
             { load_number: { contains: searchTerm } },
@@ -197,12 +205,12 @@ export const search = async (query: string): Promise<SearchResult[]> => {
         }
       });
     } catch (error) {
-      console.error('Error searching loads:', error);
+      // Error searching loads
     }
 
     // 3. Search firms
     try {
-      const { data: firms } = await client.models.Firm?.list({
+      const { data: firms } = await getClient().models.Firm?.list({
         filter: {
           or: [
             { firm_name: { contains: searchTerm } },
@@ -233,12 +241,12 @@ export const search = async (query: string): Promise<SearchResult[]> => {
         }
       });
     } catch (error) {
-      console.error('Error searching firms:', error);
+      // Error searching firms
     }
 
     // 4. Search users by email
     try {
-      const { data: users } = await client.models.User?.list({
+      const { data: users } = await getClient().models.User?.list({
         filter: {
           or: [
             { email: { contains: searchTerm } },
@@ -269,12 +277,12 @@ export const search = async (query: string): Promise<SearchResult[]> => {
         }
       });
     } catch (error) {
-      console.error('Error searching users:', error);
+      // Error searching users
     }
 
     // Search users
     try {
-      const { data: users } = await client.models.User?.list({
+      const { data: users } = await getClient().models.User?.list({
         filter: {
           or: [
             { first_name: { contains: searchTerm } },
@@ -299,12 +307,12 @@ export const search = async (query: string): Promise<SearchResult[]> => {
         }
       });
     } catch (error) {
-      console.error('Error searching users:', error);
+      // Error searching users
     }
     
     return results;
   } catch (error) {
-    console.error('Search error:', error);
+    // Search error
     return [];
   }
 };

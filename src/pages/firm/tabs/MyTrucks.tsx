@@ -55,7 +55,7 @@ const MyTrucks: React.FC<Props> = ({
         const user = await getCurrentUser();
         setCurrentUser(user);
       } catch (error) {
-        console.error('Error fetching current user:', error);
+        // Error fetching current user
       }
     };
 
@@ -211,7 +211,7 @@ const MyTrucks: React.FC<Props> = ({
                   position: 'top-right',
                 });
               } catch (err) {
-                console.error('Failed to delete truck:', err);
+                // Failed to delete truck
                 info({
                   title: 'Error',
                   message: 'Failed to delete truck. Please try again.',
@@ -308,7 +308,7 @@ const MyTrucks: React.FC<Props> = ({
                           <button
                             onClick={() => {
                               // Implement edit functionality
-                              console.log('Edit truck:', truck.id);
+                              // Edit truck
                             }}
                             style={{
                               background: 'none',

@@ -57,7 +57,7 @@ const EmailVerification: React.FC = () => {
       await confirmSignUp({ username: email, confirmationCode: code });
       setStep('setPassword');
     } catch (err: any) {
-      console.error(err);
+      // Verification error
       setError(err?.message ?? 'Verification failed');
     } finally {
       setSubmitting(false);
@@ -114,7 +114,7 @@ const EmailVerification: React.FC = () => {
       await resendSignUpCode({ username: email });
       setResendIn(30);
     } catch (err: any) {
-      console.error('Resend code error:', err);
+      // Resend code error
       setError(err?.message ?? 'Failed to resend code');
     }
   };
@@ -160,7 +160,7 @@ const EmailVerification: React.FC = () => {
         });
       } catch (attrErr) {
         // Non-fatal: proceed even if attributes update fails
-        console.error('Failed to update user attributes (name):', attrErr);
+        // Failed to update user attributes
       }
 
       // Create Firm after successful password setup
@@ -209,7 +209,7 @@ const EmailVerification: React.FC = () => {
           });
           createdFirmId = (res as any)?.data?.id ?? (res as any)?.id;
         } catch (err) {
-          console.error('Failed to create Firm after verification:', err);
+          // Failed to create Firm after verification
         }
       } else {
         // Fallback: if the pending payload is missing (e.g., cross-device verification),
@@ -243,7 +243,7 @@ const EmailVerification: React.FC = () => {
           });
           createdFirmId = (res2 as any)?.data?.id ?? (res2 as any)?.id;
         } catch (err) {
-          console.error('Failed to create fallback Firm after verification:', err);
+          // Failed to create fallback Firm after verification
         }
       }
       // Ensure the admin user is present in Amplify Data as SUPER_MANAGER
@@ -338,7 +338,7 @@ const EmailVerification: React.FC = () => {
           }
         }
       } catch (userErr) {
-        console.error('Failed to upsert admin User after verification:', userErr);
+        // Failed to upsert admin User after verification
       }
 
       // Persist Firm ID locally for quick linkage on subsequent pages
@@ -357,11 +357,11 @@ const EmailVerification: React.FC = () => {
         await signOut({ global: true });
       } catch (signOutErr) {
         // Non-fatal; continue navigation even if global sign-out fails
-        console.error('Post-verification sign-out failed:', signOutErr);
+        // Post-verification sign-out failed
       }
       navigate('/login');
     } catch (err: any) {
-      console.error(err);
+      // Verification error
       setError(err?.message ?? 'Failed to set password');
     } finally {
       setSubmitting(false);

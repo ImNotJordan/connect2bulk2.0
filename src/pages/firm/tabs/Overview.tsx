@@ -4,10 +4,6 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../../amplify/data/resource';
 import { FaTruckLoading, FaTruckMoving } from 'react-icons/fa';
 
-const client = generateClient<Schema>();
-
-
-
 type Series = {
   name: string;
   color: string;
@@ -22,6 +18,9 @@ type LineChartProps = {
 };
 
 const Overview: React.FC = () => {
+  // Initialize Amplify client after configuration
+  const client = useMemo(() => generateClient<Schema>(), []);
+
   const [postedLoads, setPostedLoads] = useState<number>(0);
   const [prevPostedLoads, setPrevPostedLoads] = useState<number>(0);
   const [loadingPosted, setLoadingPosted] = useState<boolean>(true);
@@ -199,7 +198,7 @@ const Overview: React.FC = () => {
           yesterday: yesterdayDeliveryData.length,
         }));
       } catch (err) {
-        console.error("Error fetching data:", err);
+        // Error fetching data
       } finally {
         setLoadingTrucks(false);
         setLoadingPosted(false);

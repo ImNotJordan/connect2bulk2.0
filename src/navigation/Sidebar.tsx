@@ -24,18 +24,14 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
 
   // Map stored role codes or legacy strings to display labels (used for nav logic)
   const displayRole = (r: any): string => {
-    console.log('Raw role value:', r);
     if (!r) {
-      console.log('No role provided');
       return '';
     }
     const v = String(r).trim().toUpperCase();
-    console.log('Normalized role value:', v);
     
     if (v === 'SUPERADMIN' || v === 'ADMIN') return 'SuperAdmin';
     if (v === 'MEMBER' || v === 'REGULAR') return 'Member';
     
-    console.log('No matching role found for value:', v);
     return '';
   }
 
@@ -45,7 +41,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
       const res = await fn()
       return res.data
     } catch (e) {
-      console.debug('API call failed:', e)
+      // API call failed
       return undefined
     }
   }
@@ -56,7 +52,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
     
     const loadData = async () => {
       try {
-        console.log('1. Fetching user attributes...')
+        // Fetching user attributes
         const attrs = await fetchUserAttributes()
         if (!alive) return
         
@@ -64,20 +60,20 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         const last = (attrs.family_name || '').trim()
         const email = (attrs.email || '').trim().toLowerCase()
         
-        console.log('2. Setting basic user info:', { first, last, email })
+        // Setting basic user info
         setUserName([first, last].filter(Boolean).join(' '))
         setUserEmail(attrs.email || '')
 
         // Get role from Cognito custom attributes
         const role = attrs['custom:roles'] || '';
-        console.log('3. User role from Cognito:', role);
+        // User role from Cognito
         if (role) {
           const roleToDisplay = displayRole(role);
-          console.log('4. Setting user role:', { originalRole: role, displayRole: roleToDisplay });
+          // Setting user role
           setOriginalRole(role);
           setUserRole(roleToDisplay);
         } else {
-          console.log('4. No role found in Cognito attributes');
+          // No role found in Cognito attributes
         }
 
         // Try to get firm data for company name
@@ -95,7 +91,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           }
         }
       } catch (error) {
-        console.debug('Error loading user data:', error)
+        // Error loading user data
       }
     }
 
@@ -110,7 +106,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
       await signOut({ global: true })
       navigate('/login', { replace: true })
     } catch (e) {
-      console.error('Sign out failed:', e)
+      // Sign out failed
       navigate('/login', { replace: true })
     }
   }

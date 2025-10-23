@@ -73,7 +73,7 @@ const MyLoads: React.FC<Props> = ({
                   setContextRows(prev => prev.filter(load => load.id !== loadId));
                 }
               } catch (error) {
-                console.error('Error deleting load:', error);
+                // Error deleting load
                 info({
                   title: 'Error',
                   message: 'Failed to delete load. Please try again.',
@@ -112,7 +112,7 @@ const MyLoads: React.FC<Props> = ({
           email: user.signInDetails?.loginId
         });
       } catch (error) {
-        console.error('Error fetching current user:', error);
+        // Error fetching current user
       }
     };
     

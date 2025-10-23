@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import styled from 'styled-components'
 import Sidebar from './Sidebar'
@@ -12,8 +12,6 @@ import type { Schema } from '../../amplify/data/resource'
 import { useAlert } from '../components/AlertProvider'
 import { TRAILER_TYPES } from '../pages/firm/constants'
 import { useLoadContext } from '../context/LoadContext'
-
-const client = generateClient<Schema>()
 
 const toAllCaps = (s: string) => (s || '').toUpperCase()
 
@@ -46,6 +44,9 @@ const defaultForm: FormState = {
 }
 
 const AppLayout: React.FC = () => {
+  // Initialize Amplify client after configuration
+  const client = useMemo(() => generateClient<Schema>(), []);
+
   const [collapsed, setCollapsed] = useState(false)
   const [quickCreateOpen, setQuickCreateOpen] = useState(false)
   const quickCreateRef = useRef<HTMLDivElement | null>(null)
@@ -120,7 +121,7 @@ const AppLayout: React.FC = () => {
           const results = await performSearch(searchQuery)
           setSearchResults(results)
         } catch (error) {
-          console.error('Search error:', error)
+          // Search error
           setSearchResults([])
         } finally {
           setIsSearching(false)
@@ -230,7 +231,7 @@ const AppLayout: React.FC = () => {
         throw new Error('Failed to create load')
       }
     } catch (err: any) {
-      console.error('Error creating load:', err)
+      // Error creating load
       setError(err.message || 'Failed to create load. Please try again.')
     } finally {
       setAdding(false)

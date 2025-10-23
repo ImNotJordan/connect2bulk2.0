@@ -51,11 +51,11 @@ const Personal: React.FC = () => {
     let mounted = true;
     (async () => {
       try {
-        console.log('Loading user data from AWS Cognito...');
+        // Loading user data from AWS Cognito
         
         // Load all attributes from Cognito
         const attrs = await fetchUserAttributes();
-        console.log('AWS Cognito attributes:', attrs);
+        // AWS Cognito attributes
         
         if (!mounted) return;
         
@@ -85,7 +85,7 @@ const Personal: React.FC = () => {
           timezone: attrs['custom:timezone'] || ''
         };
         
-        console.log('Merged form data:', formData);
+        // Merged form data
         
           
         if (formData.phone && !attrs['custom:countryCode']) {
@@ -103,14 +103,14 @@ const Personal: React.FC = () => {
             : formData.phone;
         }
         
-        console.log('Final form data before setting state:', formData);
+        // Final form data before setting state
         
         setForm((prev) => {
           const next = {
             ...prev,
             ...formData
           };
-          console.log('Setting form state:', next);
+          // Setting form state
           snapshotRef.current = next;
           return next;
         });
@@ -382,11 +382,11 @@ const Personal: React.FC = () => {
           if (e164) updates.phone_number = e164;
         }
         
-        console.log('Saving to AWS Cognito:', updates);
+        // Saving to AWS Cognito
         
-        console.log('Saving user attributes to AWS Cognito:', updates);
+        // Saving user attributes to AWS Cognito
         await updateUserAttributes({ userAttributes: updates });
-        console.log('Successfully updated user attributes in AWS Cognito');
+        // Successfully updated user attributes in AWS Cognito
 
         
         try {
@@ -453,7 +453,7 @@ const Personal: React.FC = () => {
                     if (f) localStorage.setItem('c2b:myFirmId', String(f.id));
                   } catch {}
                 } catch (createErr) {
-                  console.error('Failed to create Firm:', createErr);
+                  // Failed to create Firm
                   alertApi.error({
                     title: 'Failed to create Firm',
                     message: (createErr as any)?.message ?? 'An unexpected error occurred.',
@@ -482,7 +482,7 @@ const Personal: React.FC = () => {
             }
           }
         } catch (firmErr) {
-          console.warn('Firm update skipped/failed:', firmErr);
+          // Firm update skipped/failed
         }
 
         alertApi.success({
@@ -491,7 +491,7 @@ const Personal: React.FC = () => {
         });
         setEditing(false);
       } catch (err) {
-        console.error('Failed to update profile attributes:', err);
+        // Failed to update profile attributes
         alertApi.error({
           title: 'Failed to save profile',
           message: (err as any)?.message ?? 'An unexpected error occurred.',

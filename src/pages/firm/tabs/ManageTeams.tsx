@@ -104,7 +104,7 @@ const ManageTeams: React.FC = () => {
           }
         }
       } catch (e) {
-        console.error('Failed to load users for manager select:', e);
+        // Failed to load users for manager select
       } finally {
         setUsersLoading(false);
       }
@@ -150,7 +150,7 @@ const ManageTeams: React.FC = () => {
           }
         }
       } catch (e) {
-        console.error('Failed to load teams:', e);
+        // Failed to load teams
       } finally {
         setTeamsLoading(false);
       }

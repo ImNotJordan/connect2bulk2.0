@@ -43,16 +43,16 @@ const TruckBoard: React.FC = () => {
   const fetchTrucks = async () => {
     try {
       setLoading(true);
-      console.log('Fetching trucks from backend...');
+      // Fetching trucks from backend
       const result = await client.models.Truck.list();
-      console.log('Fetched trucks:', result);
+      // Fetched trucks
       if (result.data) {
         setTrucks(result.data);
         // ✅ cache in sessionStorage
         sessionStorage.setItem('trucks', JSON.stringify(result.data));
       }
     } catch (err) {
-      console.error('Error fetching trucks:', err);
+      // Error fetching trucks
       setError('Failed to load trucks. Please refresh the page.');
     } finally {
       setLoading(false);
@@ -73,7 +73,7 @@ const TruckBoard: React.FC = () => {
     
     // Set up interval to fetch every minute (60000ms)
     const intervalId = setInterval(() => {
-      console.log('Auto-refreshing trucks...');
+      // Auto-refreshing trucks
       fetchTrucks();
     }, 60000);
 
@@ -195,8 +195,8 @@ const TruckBoard: React.FC = () => {
         throw new Error('User not authenticated');
       }
 
-      console.log('Current user ID:', userId);
-      console.log('Current username:', username);
+      // Current user ID
+      // Current username
 
       const truckInput = {
         truck_number: form.truck_number.trim() || `T-${Date.now()}`,
@@ -211,7 +211,7 @@ const TruckBoard: React.FC = () => {
         created_at: new Date().toISOString()
       };
       
-      console.log('Creating truck with input:', truckInput);
+      // Creating truck with input
 
       const { data: createdTruck, errors } = await client.models.Truck.create(truckInput, {
         authMode: 'userPool',
@@ -219,7 +219,7 @@ const TruckBoard: React.FC = () => {
       });
       
       if (errors && errors.length > 0) {
-        console.error('Error details:', errors);
+        // Error details
         throw new Error(errors[0]?.message || 'Failed to create truck');
       }
 
@@ -227,7 +227,7 @@ const TruckBoard: React.FC = () => {
         throw new Error('No data returned from truck creation');
       }
 
-      console.log('Truck created successfully:', createdTruck);
+      // Truck created successfully
       setLastCreated(createdTruck);
       setTrucks((prev) => {
         const updated = [createdTruck, ...prev];
@@ -237,7 +237,7 @@ const TruckBoard: React.FC = () => {
       incrementRefreshToken();
       closeModal();
     } catch (err) {
-      console.error('Error creating truck:', err);
+      // Error creating truck
       setError('Failed to create truck. Please try again.');
     } finally {
       setAdding(false);
@@ -274,7 +274,7 @@ const TruckBoard: React.FC = () => {
         position: 'top-right',
       });
     } catch (error) {
-      console.error('Error deleting truck:', error);
+      // Error deleting truck
       // Show error toast
       info({
         title: 'Error',

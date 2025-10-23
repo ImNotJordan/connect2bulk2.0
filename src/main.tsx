@@ -7,16 +7,14 @@ import { Amplify } from 'aws-amplify'
 import outputs from '../amplify_outputs.json'
 import { AlertProvider } from './components/AlertProvider'
 
-// Configure Amplify with detailed logging
+// Configure Amplify
 try {
-  console.log('Configuring Amplify...');
   Amplify.configure({
     ...outputs,
     // Add any additional Amplify configuration here
   });
-  console.log('Amplify configured successfully');
 } catch (error) {
-  console.error('Error configuring Amplify:', error);
+  // Amplify configuration error
 }
 
 // Create a function to render the app

@@ -59,7 +59,7 @@ const Register: React.FC = () => {
       alert('We sent a 6-digit verification code to your email.');
       navigate(`/verify?email=${encodeURIComponent(email)}`);
     } catch (err) {
-      console.error('Registration error:', err);
+      // Registration error
       alert((err as any)?.message ?? 'Registration failed');
     } finally {
       setSubmitting(false);

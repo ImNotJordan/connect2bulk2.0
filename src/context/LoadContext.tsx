@@ -30,7 +30,7 @@ export const LoadProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const incrementRefreshToken = () => {
     setRefreshToken((prev) => {
       const next = prev + 1;
-      console.debug('[LoadContext] Increment refreshToken to', next);
+      // Increment refreshToken
       return next;
     });
   };

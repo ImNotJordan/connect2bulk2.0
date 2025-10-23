@@ -191,7 +191,7 @@ const Work: React.FC = () => {
         setFirm(null);
       }
     } catch (err) {
-      console.error('Failed to load work info:', err);
+      // Failed to load work info
       alertApi.error({
         title: 'Failed to load work info',
         message: (err as any)?.message ?? 'An unexpected error occurred.',
@@ -316,7 +316,7 @@ const Work: React.FC = () => {
         }, 800);
       }
     } catch (err) {
-      console.error('Failed to create Firm:', err);
+      // Failed to create Firm
       alertApi.error({
         title: 'Failed to create Firm',
         message: (err as any)?.message ?? 'An unexpected error occurred.',

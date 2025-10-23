@@ -42,7 +42,7 @@ const ResetPassword: React.FC = () => {
       setStep('confirm');
       setInfo('We sent a verification code to your email.');
     } catch (err: any) {
-      console.error('Reset request error:', err);
+      // Reset request error
       setError(err?.message ?? 'Failed to request password reset');
     } finally {
       setSubmitting(false);
@@ -62,7 +62,7 @@ const ResetPassword: React.FC = () => {
       await resetPassword({ username });
       setInfo('We sent a verification code to your email.');
     } catch (err: any) {
-      console.error('Send code error:', err);
+      // Send code error
       setError(err?.message ?? 'Failed to send code');
     } finally {
       setSubmitting(false);
@@ -88,7 +88,7 @@ const ResetPassword: React.FC = () => {
       setInfo('Password reset successful. You can now sign in.');
       navigate('/login', { replace: true });
     } catch (err: any) {
-      console.error('Confirm reset error:', err);
+      // Confirm reset error
       setError(err?.message ?? 'Failed to reset password');
     } finally {
       setSubmitting(false);

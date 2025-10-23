@@ -66,7 +66,7 @@ const ManageUsers: React.FC = () => {
         const user = await getCurrentUser();
         setCurrentUserEmail(user.signInDetails?.loginId || null);
       } catch (error) {
-        console.error('Error getting current user:', error);
+        // Error getting current user
       }
     };
     getCurrentUserEmail();
@@ -127,7 +127,7 @@ const ManageUsers: React.FC = () => {
 
       setUsers(cognitoUsers);
     } catch (e: any) {
-      console.error('Failed to load users:', e);
+      // Failed to load users
       alertApi.error({ title: 'Failed to load users', message: e?.message ?? 'Please try again.' });
     } finally {
       setLoading(false);
@@ -157,7 +157,7 @@ const ManageUsers: React.FC = () => {
       if (!userPoolId) throw new Error('User Pool ID not configured.');
       try {
         const { data, errors } = await deleteMutation({ username: email, userPoolId }, { authMode: 'userPool' });
-        console.debug('deleteCognitoUser (userPool) result:', { data, errors });
+        // deleteCognitoUser (userPool) result
         if (errors?.length) throw new Error(errors.map((e: any) => e.message).join(', '));
         const okVal = typeof data === 'boolean' ? data : (data?.deleteCognitoUser ?? data?.result ?? null);
         if (!okVal) throw new Error('Failed to delete Cognito user');
@@ -165,7 +165,7 @@ const ManageUsers: React.FC = () => {
         const msg = String(err?.message ?? err);
         if (/Not Authorized|Unauthorized/i.test(msg)) {
           const { data: data2, errors: errors2 } = await deleteMutation({ username: email, userPoolId }, { authMode: 'identityPool' });
-          console.debug('deleteCognitoUser (identityPool) result:', { data: data2, errors: errors2 });
+          // deleteCognitoUser (identityPool) result
           if (errors2?.length) throw new Error(errors2.map((e: any) => e.message).join(', '));
           const okVal2 = typeof data2 === 'boolean' ? data2 : (data2?.deleteCognitoUser ?? data2?.result ?? null);
           if (!okVal2) throw new Error('Failed to delete Cognito user (IAM)');
@@ -197,7 +197,7 @@ const ManageUsers: React.FC = () => {
       });
       alertApi.success({ title: 'User deleted', message: `${email} was removed.` });
     } catch (e: any) {
-      console.error('Delete user failed:', e);
+      // Delete user failed
       alertApi.error({ title: 'Delete failed', message: e?.message ?? 'Please run npx ampx sandbox and try again.' });
     } finally {
       setDeletingId(null);
@@ -225,7 +225,7 @@ const ManageUsers: React.FC = () => {
           }
           updatedCount++;
         } catch (e) {
-          console.error('Bulk update failed for user', id, e);
+          // Bulk update failed for user
         }
       }
       if (updatedCount > 0) {
@@ -284,7 +284,7 @@ const ManageUsers: React.FC = () => {
       await client.send(command);
       return true;
     } catch (error) {
-      console.error('Error updating user:', error);
+      // Error updating user
       return false;
     }
   };
@@ -310,7 +310,7 @@ const ManageUsers: React.FC = () => {
         throw new Error('Failed to update role in Cognito');
       }
     } catch (e: any) {
-      console.error('Update role failed:', e);
+      // Update role failed
       alertApi.error({ 
         title: 'Failed to update role', 
         message: e?.message || 'Could not update user role in Cognito. Please try again.' 
@@ -397,7 +397,7 @@ const ManageUsers: React.FC = () => {
       try {
         await resetPassword({ username: email });
       } catch (err) {
-        console.warn('Failed to trigger resetPassword after signUp (will rely on verification email instead):', err);
+        // Failed to trigger resetPassword after signUp
       }
 
       // Resolve current admin's firm id (match Firm by administrator_email)
@@ -425,7 +425,7 @@ const ManageUsers: React.FC = () => {
           const mine = firms.find((f: any) => String(f?.administrator_email || '').trim().toLowerCase() === adminEmail);
           return mine?.id ? String(mine.id) : undefined;
         } catch (e) {
-          console.warn('Failed to resolve firm id for admin:', e);
+          // Failed to resolve firm id for admin
           return undefined;
         }
       };
@@ -478,7 +478,7 @@ const ManageUsers: React.FC = () => {
           // Prefer userPool; fall back to identityPool
           try {
             const { data, errors } = await sendMutation({ to: email, resetUrl: resetUrl.toString(), firstName: first, lastName: last }, { authMode: 'userPool' });
-            console.debug('sendResetEmail (userPool) result:', { data, errors });
+            // sendResetEmail (userPool) result
             if (errors?.length) throw new Error(errors.map((e: any) => e.message).join(', '));
             const okVal = typeof data === 'boolean' ? data : (data?.sendResetEmail ?? data?.result ?? null);
             if (!okVal) throw new Error('Failed to send reset email');
@@ -486,7 +486,7 @@ const ManageUsers: React.FC = () => {
             const msg = String(err?.message ?? err);
             if (/Not Authorized|Unauthorized/i.test(msg)) {
               const { data: data2, errors: errors2 } = await sendMutation({ to: email, resetUrl: resetUrl.toString(), firstName: first, lastName: last }, { authMode: 'identityPool' });
-              console.debug('sendResetEmail (identityPool) result:', { data: data2, errors: errors2 });
+              // sendResetEmail (identityPool) result
               if (errors2?.length) throw new Error(errors2.map((e: any) => e.message).join(', '));
               const okVal2 = typeof data2 === 'boolean' ? data2 : (data2?.sendResetEmail ?? data2?.result ?? null);
               if (!okVal2) throw new Error('Failed to send reset email (IAM)');
@@ -495,10 +495,10 @@ const ManageUsers: React.FC = () => {
             }
           }
         } else {
-          console.warn('sendResetEmail mutation is not available; run npx ampx sandbox to provision backend.');
+          // sendResetEmail mutation is not available
         }
       } catch (e) {
-        console.warn('sendResetEmail mutation failed:', e);
+        // sendResetEmail mutation failed
       }
       const onCopy = async () => {
         try {
@@ -525,7 +525,7 @@ const ManageUsers: React.FC = () => {
         ),
       });
     } catch (err: any) {
-      console.error('Add user failed:', err);
+      // Add user failed
       setError(err?.message ?? 'Failed to add user');
     } finally {
       setSubmitting(false);
@@ -611,7 +611,7 @@ const ManageUsers: React.FC = () => {
             }
           }
         } catch (e) {
-          console.error('Failed to normalize role for user', u.id, e);
+          // Failed to normalize role for user
         }
       }
       if (updated.length > 0) {

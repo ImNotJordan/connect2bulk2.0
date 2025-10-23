@@ -5,9 +5,6 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../../amplify/data/resource';
 import { useAlert } from '../../../components/AlertProvider';
 
-// Initialize Amplify client
-const client = generateClient<Schema>();
-
 type TruckType = {
   id?: string;
   truck_number?: string;
@@ -54,6 +51,9 @@ const AllFirmTrucks: React.FC<Props> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { info } = useAlert();
+
+  // Initialize Amplify client after configuration
+  const client = useMemo(() => generateClient<Schema>(), []);
 
   // Initialize local state from props
   useEffect(() => {
@@ -191,7 +191,7 @@ const AllFirmTrucks: React.FC<Props> = ({
         : sorted;
       setLocalTrucks(merged);
     } catch (e: any) {
-      console.error('[AllFirmTrucks] list() error:', e);
+      // AllFirmTrucks list() error
       setError(e?.message ?? 'Failed to load data');
     } finally {
       setIsLoading(false);
@@ -250,7 +250,7 @@ const AllFirmTrucks: React.FC<Props> = ({
                   setLocalTrucks((prev) => prev.filter((t) => t.id !== id));
                 }
               } catch (err) {
-                console.error('Failed to delete truck:', err);
+                // Failed to delete truck
                 info({
                   title: 'Error',
                   message: 'Failed to delete truck. Please try again.',

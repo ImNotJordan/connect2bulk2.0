@@ -242,7 +242,7 @@ const BusinessProfile: React.FC = () => {
       }));
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Failed to load BusinessProfile', err);
+      // Failed to load BusinessProfile
     } finally {
       setLoading(false);
     }
@@ -370,7 +370,7 @@ const BusinessProfile: React.FC = () => {
         }
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error('BusinessProfile save failed', err);
+        // BusinessProfile save failed
         setSaveStatus('error');
         setSaveMessage((err as any)?.message || 'Save failed');
       } finally {

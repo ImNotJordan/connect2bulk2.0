@@ -35,7 +35,7 @@ const Login: React.FC = () => {
       }
       alert(`Next step: ${step}`);
     } catch (err: any) {
-      console.error('Login error:', err);
+      // Login error
       alert(err?.message ?? 'Login failed');
     }
   };
