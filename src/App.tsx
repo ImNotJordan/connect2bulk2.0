@@ -20,6 +20,7 @@ const Profile = lazy(() => import('./pages/firm/Profile'))
 const Notifications = lazy(() => import('./pages/firm/Notifications'))
 const BusinessProfilePage = lazy(() => import('./pages/firm/BusinessProfile'))
 const Settings = lazy(() => import('./pages/firm/Settings'))
+const RFPs = lazy(() => import('./pages/firm/tabs/RFPs'))
 const UnderConstruction = lazy(() => import('./pages/firm/UnderConstruction'))
 
 // Loading fallback component
@@ -146,7 +147,7 @@ function App() {
           <Route path="/firm/settings" element={<Settings />} />
           <Route path="/firm/bidding" element={<UnderConstruction title="Bidding" />} />
           <Route path="/firm/risk-models" element={<UnderConstruction title="Risk Models" />} />
-          <Route path="/firm/rfps" element={<UnderConstruction title="RFPs" />} />
+          <Route path="/firm/rfps" element={<RFPs />} />
           <Route path="/firm/quotes" element={<UnderConstruction title="Quotes" />} />
           <Route path="/firm/analytics" element={<UnderConstruction title="Analytics" />} />
           <Route path="/firm/carriers-brokers" element={<UnderConstruction title="Carriers/Brokers" />} />

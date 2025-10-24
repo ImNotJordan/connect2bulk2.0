@@ -43,6 +43,7 @@ const Register: React.FC = () => {
         options: {
           userAttributes: { 
             email,
+            'custom:role': 'MEMBER',
             'custom:firm_name': firmName,
             'custom:address': address,
             'custom:state': stateCode,

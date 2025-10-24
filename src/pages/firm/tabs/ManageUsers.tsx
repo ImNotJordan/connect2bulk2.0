@@ -117,7 +117,7 @@ const ManageUsers: React.FC = () => {
           last_name: attributes.family_name || '',
           email: attributes.email || '',
           phone: attributes.phone_number || '',
-          role: attributes['custom:roles'] || 'MEMBER',
+          role: attributes['custom:role'] || 'MEMBER',
           createdAt: user.UserCreateDate ? new Date(user.UserCreateDate).toISOString() : '',
           updatedAt: user.UserLastModifiedDate ? new Date(user.UserLastModifiedDate).toISOString() : '',
           status: user.UserStatus || '',
@@ -298,8 +298,8 @@ const ManageUsers: React.FC = () => {
         throw new Error('User email not found');
       }
 
-      // Update role in Cognito custom:roles attribute
-      const success = await updateCognitoUserAttributes(user.email, { 'custom:roles': editingRole });
+      // Update role in Cognito custom:role attribute
+      const success = await updateCognitoUserAttributes(user.email, { 'custom:role': editingRole });
       
       if (success) {
         // Update local state only after successful Cognito update

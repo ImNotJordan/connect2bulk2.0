@@ -3,6 +3,15 @@ import styled from 'styled-components';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../../amplify/data/resource';
 import { FaTruckLoading, FaTruckMoving } from 'react-icons/fa';
+import DashboardActions from '../../../components/DashboardActions';
+import RealtimeLoadsList from '../../../components/RealtimeLoadsList';
+import {
+  CreateQuoteModal,
+  StartTenderModal,
+  CallDriverModal,
+  LaunchCollectionModal,
+  PostUpdateModal,
+} from '../../../components/ActionModals';
 
 type Series = {
   name: string;
@@ -35,6 +44,13 @@ const Overview: React.FC = () => {
   const [yesterdayDeliveries, setYesterdayDeliveries] = useState<number>(0);
   const [loadingPickups, setLoadingPickups] = useState<boolean>(true);
   const [loadingDeliveries, setLoadingDeliveries] = useState<boolean>(true);
+
+  // Modal states
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [showTenderModal, setShowTenderModal] = useState(false);
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [showCollectionModal, setShowCollectionModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   const getStartOfDay = (date: Date) => {
     const d = new Date(date);
@@ -230,7 +246,6 @@ const Overview: React.FC = () => {
     : todayDeliveries > 0 ? '100' : '0';
 
   const kpis = [
-    { label: 'Impressions', value: 1518, change: '+64%', changeColor: '#22c55e', icon: null },
     { 
       label: 'Posted Loads', 
       value: loadingPosted ? '...' : postedLoads, 
@@ -278,39 +293,56 @@ const Overview: React.FC = () => {
 
   return (
     <Container>
-      <SectionHeader>View your impressions, trucks loads, posted loads over time.</SectionHeader>
-      <KPIGrid>
-        {kpis.map((k) => (
-          <KpiCard 
-            key={k.label} 
-            aria-label={`${k.label} ${k.value} (${k.change})`}
-            data-label={k.label}
-          >
-            <KpiLabel>
-              {k.icon || null}
-              {k.label}
-            </KpiLabel>
-            <KpiValueRow>
-              <KpiValue>{typeof k.value === 'number' ? k.value.toLocaleString() : k.value}</KpiValue>
-              <KpiDelta style={{ color: k.changeColor }}>{k.change}</KpiDelta>
-            </KpiValueRow>
-          </KpiCard>
-        ))}
-      </KPIGrid>
+    <DashboardActions
+      onCreateQuote={() => setShowQuoteModal(true)}
+      onStartTender={() => setShowTenderModal(true)}
+      onCallDriver={() => setShowCallModal(true)}
+      onLaunchCollection={() => setShowCollectionModal(true)}
+      onPostUpdate={() => setShowUpdateModal(true)}
+    />
 
-      <ChartSection>
-        <SectionHeader>See how your loads and trucks grew over time.</SectionHeader>
-        <ChartCard>
-          <ResponsiveLineChart title="" labels={labels} series={chart1} />
-        </ChartCard>
-      </ChartSection>
+    <RealtimeLoadsList />
 
-      <ChartSection>
-        <SectionHeader>View your current users posted loads and truck loads over time.</SectionHeader>
-        <ChartCard>
-          <ResponsiveLineChart title="" labels={labels} series={chart2} />
-        </ChartCard>
-      </ChartSection>
+    <SectionHeader>View your impressions, trucks loads, posted loads over time.</SectionHeader>
+    <KPIGrid>
+      {kpis.map((k) => (
+        <KpiCard 
+          key={k.label} 
+          aria-label={`${k.label} ${k.value} (${k.change})`}
+          data-label={k.label}
+        >
+          <KpiLabel>
+            {k.icon || null}
+            {k.label}
+          </KpiLabel>
+          <KpiValueRow>
+            <KpiValue>{typeof k.value === 'number' ? k.value.toLocaleString() : k.value}</KpiValue>
+            <KpiDelta style={{ color: k.changeColor }}>{k.change}</KpiDelta>
+          </KpiValueRow>
+        </KpiCard>
+      ))}
+    </KPIGrid>
+
+    <ChartSection>
+      <SectionHeader>See how your loads and trucks grew over time.</SectionHeader>
+      <ChartCard>
+        <ResponsiveLineChart title="" labels={labels} series={chart1} />
+      </ChartCard>
+    </ChartSection>
+
+    <ChartSection>
+      <SectionHeader>View your current users posted loads and truck loads over time.</SectionHeader>
+      <ChartCard>
+        <ResponsiveLineChart title="" labels={labels} series={chart2} />
+      </ChartCard>
+    </ChartSection>
+
+    {/* Action Modals */}
+    <CreateQuoteModal isOpen={showQuoteModal} onClose={() => setShowQuoteModal(false)} />
+    <StartTenderModal isOpen={showTenderModal} onClose={() => setShowTenderModal(false)} />
+    <CallDriverModal isOpen={showCallModal} onClose={() => setShowCallModal(false)} />
+    <LaunchCollectionModal isOpen={showCollectionModal} onClose={() => setShowCollectionModal(false)} />
+      <PostUpdateModal isOpen={showUpdateModal} onClose={() => setShowUpdateModal(false)} />
     </Container>
   );
 };

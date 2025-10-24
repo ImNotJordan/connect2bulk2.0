@@ -58,14 +58,13 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         
         const first = (attrs.given_name || '').trim()
         const last = (attrs.family_name || '').trim()
-        const email = (attrs.email || '').trim().toLowerCase()
         
         // Setting basic user info
         setUserName([first, last].filter(Boolean).join(' '))
         setUserEmail(attrs.email || '')
 
         // Get role from Cognito custom attributes
-        const role = attrs['custom:roles'] || '';
+        const role = attrs['custom:role'] || '';
         // User role from Cognito
         if (role) {
           const roleToDisplay = displayRole(role);

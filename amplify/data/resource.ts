@@ -5,6 +5,9 @@ import { deleteCognitoUser as deleteCognitoUserFn } from '../functions/deleteCog
 // Define enums
 const FirmType = a.enum(['Carrier', 'Shipper', 'Broker', 'Other']);
 const Role = a.enum(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER', 'BROKER', 'DISPATCHER', 'ACCOUNTING', 'SALES', 'MARKETING', 'CUSTOMER']);
+const LoadStatus = a.enum(['POSTED', 'QUOTED', 'TENDERED', 'BOOKED', 'IN_TRANSIT', 'DELIVERED', 'INVOICED', 'PAID']);
+const EventType = a.enum(['PICKUP', 'DELIVERY', 'IN_TRANSIT', 'DELAY', 'ETA_UPDATE', 'LOCATION_PING']);
+const RiskLevel = a.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
 
 const schema = a.schema({
 
@@ -71,7 +74,13 @@ const schema = a.schema({
     rate: a.float(),
     frequency: a.string(),
     comment: a.string(),
+    status: LoadStatus,
+    driver_name: a.string(),
+    driver_phone: a.string(),
+    customer_id: a.string(),
+    customer_name: a.string(),
     created_at: a.datetime(),
+    updated_at: a.datetime(),
   }).authorization((allow) => [
     allow.owner().to(['create', 'update', 'delete', 'read']),
     allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']).to(['create', 'read', 'update', 'delete']),
@@ -117,6 +126,157 @@ const schema = a.schema({
   }).authorization((allow) => [
     allow.owner().to(['create', 'update', 'delete', 'read']),
     allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
+
+  // ===========================
+  // TrackingEvent Model
+  // ===========================
+  TrackingEvent: a.model({
+    load_id: a.string().required(),
+    event_type: EventType,
+    location: a.string(),
+    latitude: a.float(),
+    longitude: a.float(),
+    eta: a.datetime(),
+    delay_minutes: a.integer(),
+    notes: a.string(),
+    created_at: a.datetime(),
+  }).authorization((allow) => [
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['create', 'read']),
+  ]),
+
+  // ===========================
+  // RiskScore Model
+  // ===========================
+  RiskScore: a.model({
+    load_id: a.string().required(),
+    risk_level: RiskLevel,
+    score: a.integer(),
+    factors: a.string(), // JSON string of risk factors
+    weather_risk: a.boolean(),
+    route_risk: a.boolean(),
+    carrier_risk: a.boolean(),
+    created_at: a.datetime(),
+  }).authorization((allow) => [
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
+
+  // ===========================
+  // AccountsReceivable Model
+  // ===========================
+  AccountsReceivable: a.model({
+    load_id: a.string().required(),
+    invoice_number: a.string(),
+    amount: a.float().required(),
+    amount_paid: a.float(),
+    due_date: a.datetime(),
+    paid_date: a.datetime(),
+    status: a.string(),
+    customer_id: a.string(),
+    customer_name: a.string(),
+    days_outstanding: a.integer(),
+    created_at: a.datetime(),
+  }).authorization((allow) => [
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER', 'ACCOUNTING']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
+
+  // ===========================
+  // RFPUpload Model (for bulk import tracking)
+  // ===========================
+  RFPUpload: a.model({
+    customer_id: a.string(),
+    customer_name: a.string().required(),
+    file_name: a.string().required(),
+    total_lanes: a.integer(),
+    processed_lanes: a.integer(),
+    status: a.string(), // 'PROCESSING', 'COMPLETED', 'FAILED'
+    uploaded_by: a.string(),
+    template_id: a.string(),
+    created_at: a.datetime(),
+  }).authorization((allow) => [
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER', 'SALES']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
+
+  // ===========================
+  // RFPLane Model (individual lane from RFP)
+  // ===========================
+  RFPLane: a.model({
+    rfp_upload_id: a.string().required(),
+    lane_number: a.string(),
+    origin: a.string().required(),
+    destination: a.string().required(),
+    equipment_type: a.string(),
+    frequency: a.string(),
+    start_date: a.string(),
+    notes: a.string(),
+    miles: a.integer(),
+    historical_avg_buy_30: a.float(),
+    historical_avg_buy_60: a.float(),
+    historical_avg_buy_90: a.float(),
+    historical_avg_sell_30: a.float(),
+    historical_avg_sell_60: a.float(),
+    historical_avg_sell_90: a.float(),
+    margin_guidance: a.float(),
+    backhaul_score: a.float(),
+    network_fit_flag: a.boolean(),
+    similarity_score: a.float(),
+    recommended_rate: a.float(),
+    quote_id: a.string(),
+    created_at: a.datetime(),
+  }).authorization((allow) => [
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER', 'SALES']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
+
+  // ===========================
+  // RFPQuote Model (quotes generated from RFP lanes)
+  // ===========================
+  RFPQuote: a.model({
+    rfp_upload_id: a.string().required(),
+    rfp_lane_id: a.string().required(),
+    customer_id: a.string(),
+    customer_name: a.string(),
+    origin: a.string().required(),
+    destination: a.string().required(),
+    equipment_type: a.string(),
+    quoted_rate: a.float().required(),
+    margin_percent: a.float(),
+    status: a.string(), // 'PENDING', 'APPROVED', 'REJECTED', 'SENT'
+    approver_id: a.string(),
+    approver_name: a.string(),
+    approved_at: a.datetime(),
+    notes: a.string(),
+    created_at: a.datetime(),
+  }).authorization((allow) => [
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER', 'SALES']).to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
+
+  // ===========================
+  // CustomerTemplate Model (saved column mappings per customer)
+  // ===========================
+  CustomerTemplate: a.model({
+    customer_id: a.string(),
+    customer_name: a.string().required(),
+    template_name: a.string().required(),
+    column_mappings: a.string().required(), // JSON string of column mappings
+    created_by: a.string(),
+    last_used: a.datetime(),
+    created_at: a.datetime(),
+  }).authorization((allow) => [
+    allow.owner().to(['create', 'update', 'delete', 'read']),
+    allow.groups(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER', 'SALES']).to(['create', 'read', 'update', 'delete']),
     allow.authenticated().to(['read']),
   ]),
 
