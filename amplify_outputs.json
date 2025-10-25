@@ -2100,10 +2100,12 @@
             "OPERATION_MANAGER",
             "BROKER",
             "DISPATCHER",
+            "DRIVER",
             "ACCOUNTING",
             "SALES",
             "MARKETING",
-            "CUSTOMER"
+            "CUSTOMER",
+            "READ_ONLY"
           ]
         },
         "LoadStatus": {

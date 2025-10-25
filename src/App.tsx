@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { fetchAuthSession } from 'aws-amplify/auth'
 import { LoadProvider } from './context/LoadContext'
 import { SearchProvider } from './contexts/SearchContext'
+import { RBACProvider } from './contexts/RBACContext'
 
 // Lazy load components for code splitting
 const Login = lazy(() => import('./pages/Login'))
@@ -89,9 +90,10 @@ function RequireAuth({ children }: { children: React.ReactElement }) {
 function App() {
   // No additional styling needed here; each page styles itself.
   return (
-    <SearchProvider>
-      <LoadProvider>
-        <Suspense fallback={<LoadingFallback />}>
+    <RBACProvider>
+      <SearchProvider>
+        <LoadProvider>
+          <Suspense fallback={<LoadingFallback />}>
         <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         {/* Auth routes (no sidebar) */}
@@ -157,9 +159,10 @@ function App() {
           <Route path="/firm/crm" element={<UnderConstruction title="CRM" />} />
         </Route>
         </Routes>
-        </Suspense>
-      </LoadProvider>
-    </SearchProvider>
+          </Suspense>
+        </LoadProvider>
+      </SearchProvider>
+    </RBACProvider>
   )
 }
 

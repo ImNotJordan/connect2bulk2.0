@@ -7,7 +7,7 @@ import { AdminUpdateUserAttributesCommand, CognitoIdentityProviderClient, ListUs
 import { useAlert } from '../../../components/AlertProvider';
 import outputs from '../../../../amplify_outputs.json';
 
-type Role = 'ORGANIZATION_OWNER' | 'ADMIN' | 'OPERATION_MANAGER' | 'BROKER' | 'DISPATCHER' | 'ACCOUNTING' | 'SALES' | 'MARKETING' | 'CUSTOMER';
+type Role = 'ORGANIZATION_OWNER' | 'ADMIN' | 'OPERATION_MANAGER' | 'BROKER' | 'DISPATCHER' | 'DRIVER' | 'ACCOUNTING' | 'SALES' | 'MARKETING' | 'CUSTOMER' | 'READ_ONLY';
 
 interface NewUserForm {
   firstName: string;
@@ -334,10 +334,12 @@ const ManageUsers: React.FC = () => {
     if (v === 'OPERATION_MANAGER') return 'Operation Manager';
     if (v === 'BROKER') return 'Broker';
     if (v === 'DISPATCHER') return 'Dispatcher';
+    if (v === 'DRIVER') return 'Driver';
     if (v === 'ACCOUNTING') return 'Accounting';
     if (v === 'SALES') return 'Sales';
     if (v === 'MARKETING') return 'Marketing';
     if (v === 'CUSTOMER') return 'Customer';
+    if (v === 'READ_ONLY') return 'Read-Only';
     
     // Legacy labels fallback
     if (r === 'Organization Owner' || r === 'Admin') return String(r);

@@ -4,7 +4,7 @@ import { deleteCognitoUser as deleteCognitoUserFn } from '../functions/deleteCog
 
 // Define enums
 const FirmType = a.enum(['Carrier', 'Shipper', 'Broker', 'Other']);
-const Role = a.enum(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER', 'BROKER', 'DISPATCHER', 'ACCOUNTING', 'SALES', 'MARKETING', 'CUSTOMER']);
+const Role = a.enum(['ORGANIZATION_OWNER', 'ADMIN', 'OPERATION_MANAGER', 'BROKER', 'DISPATCHER', 'DRIVER', 'ACCOUNTING', 'SALES', 'MARKETING', 'CUSTOMER', 'READ_ONLY']);
 const LoadStatus = a.enum(['POSTED', 'QUOTED', 'TENDERED', 'BOOKED', 'IN_TRANSIT', 'DELIVERED', 'INVOICED', 'PAID']);
 const EventType = a.enum(['PICKUP', 'DELIVERY', 'IN_TRANSIT', 'DELAY', 'ETA_UPDATE', 'LOCATION_PING']);
 const RiskLevel = a.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
